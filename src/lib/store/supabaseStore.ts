@@ -162,6 +162,24 @@ export const supabaseStore: DataStore = {
     if (error) throw error
   },
 
+  async listCalendar() {
+    const { data, error } = await sb().from('calendar_entries').select('date, outfit_id')
+    if (error) throw error
+    return ((data ?? []) as { date: string; outfit_id: string }[]).map((r) => ({ date: r.date, outfitId: r.outfit_id }))
+  },
+
+  async setDay(date, outfitId) {
+    const { error } = await sb()
+      .from('calendar_entries')
+      .upsert({ user_id: await uid(), date, outfit_id: outfitId }, { onConflict: 'user_id,date' })
+    if (error) throw error
+  },
+
+  async clearDay(date) {
+    const { error } = await sb().from('calendar_entries').delete().eq('date', date)
+    if (error) throw error
+  },
+
   async getPrefs() {
     const { data, error } = await sb().from('preferences').select('weights, city').maybeSingle()
     if (error) throw error

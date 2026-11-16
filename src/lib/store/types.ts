@@ -46,6 +46,13 @@ export interface Outfit {
 
 export type OutfitInput = Pick<Outfit, 'occasion' | 'style' | 'itemIds' | 'date'>
 
+/** Un día del calendario con su outfit asignado (uno por día) */
+export interface CalendarEntry {
+  /** YYYY-MM-DD */
+  date: string
+  outfitId: string
+}
+
 export interface City {
   name: string
   lat: number
@@ -72,7 +79,14 @@ export interface DataStore {
 
   listOutfits(): Promise<Outfit[]>
   addOutfit(o: OutfitInput): Promise<Outfit>
+  /** borra el outfit y, en cascada, los días del calendario que lo tenían */
   removeOutfit(id: string): Promise<void>
+
+  /** todo el calendario (es de una sola persona: son pocas filas) */
+  listCalendar(): Promise<CalendarEntry[]>
+  /** asigna o reemplaza el outfit de un día */
+  setDay(date: string, outfitId: string): Promise<void>
+  clearDay(date: string): Promise<void>
 
   getPrefs(): Promise<UserPrefs>
   savePrefs(p: UserPrefs): Promise<void>

@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import { EMPTY_PREFS } from '../outfits/engine'
-import type { DataStore, Garment, GarmentWithImage, NewGarmentPayload, Outfit, UserPrefs } from './types'
+import type { CalendarEntry, DataStore, Garment, GarmentWithImage, NewGarmentPayload, Outfit, UserPrefs } from './types'
 
 interface LocalRow extends Garment {
   image: Blob
@@ -15,11 +15,14 @@ class LocalDB extends Dexie {
   garments!: Table<LocalRow, string>
   outfits!: Table<Outfit, string>
   prefs!: Table<PrefsRow, string>
+  calendar!: Table<CalendarEntry, string>
   constructor() {
     super('percha')
     this.version(1).stores({ garments: 'id, category, brand, createdAt' })
     // v2 (entrega 2): outfits guardados y preferencias
     this.version(2).stores({ outfits: 'id, createdAt', prefs: 'key' })
+    // v3 (entrega 3): calendario, un outfit por día
+    this.version(3).stores({ calendar: 'date, outfitId' })
   }
 }
 
@@ -74,7 +77,21 @@ export const localStore: DataStore = {
     return row
   },
   async removeOutfit(id) {
-    await db.outfits.delete(id)
+    // mismo efecto que el "on delete cascade" de Postgres
+    await db.transaction('rw', db.outfits, db.calendar, async () => {
+      await db.calendar.where('outfitId').equals(id).delete()
+      await db.outfits.delete(id)
+    })
+  },
+
+  async listCalendar() {
+    return db.calendar.toArray()
+  },
+  async setDay(date, outfitId) {
+    await db.calendar.put({ date, outfitId })
+  },
+  async clearDay(date) {
+    await db.calendar.delete(date)
   },
 
   async getPrefs() {
