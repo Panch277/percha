@@ -39,8 +39,9 @@ Contexto completo para continuar este proyecto. Leelo entero antes de tocar cód
 - Vite 8 + React 19 + TypeScript (estricto, `noUnusedLocals`) + Tailwind v4 (`@tailwindcss/vite`) + react-router (HashRouter) + i18next + Dexie + supabase-js + @huggingface/transformers v4 + fuente Inter (@fontsource).
 - **Toda la IA corre en el navegador**, dentro de un Web Worker (`src/lib/ai/ai.worker.ts`):
   - Fondo: `briaai/RMBG-1.4` con `config: { model_type: 'isnet' }` (el repo no trae un model_type válido). Intenta webgpu fp32 → wasm q8 → wasm fp32. El worker devuelve solo el canal alfa y el hilo principal lo aplica (`lib/image.ts`).
-  - Etiquetas: `Xenova/clip-vit-base-patch32`, zero-shot en tres grupos (subcategoría, estilo, marca). Los prompts salen de `lib/taxonomy.ts`.
-  - Colores: k-means en CIELAB sobre los píxeles opacos, mapeados a la paleta con nombre (`lib/color.ts`).
+  - Etiquetas: `Xenova/clip-vit-base-patch32`, zero-shot en cuatro grupos (subcategoría, estilo, marca, color). Prompts en `lib/ai/prompts.ts` (a partir de `lib/taxonomy.ts`). **Solo se baja el encoder de visión q8** (89 MB); los embeddings de texto están precalculados en fp32 en `lib/ai/clip-text-embeddings.json` (`npm run clip:embed` para regenerarlos si cambian los prompts). Motivo: el CLIP completo q8 arruinaba el texto (no reconocía ni Levi's) y el fp32 pesa 606 MB y no entraba en la Cache API.
+  - Umbrales calibrados con visión q8 en `process.ts`: marca ≥ 0.5, corrección de color ≥ 0.45.
+  - Colores: k-means en CIELAB sobre los píxeles opacos, mapeados a la paleta con nombre (`lib/color.ts`). Si CLIP está seguro y su color es vecino (ΔE ≤ 35) del medido, CLIP corrige el principal (`refineWithClip`).
   - Si algo falla, la prenda se guarda igual con la foto original y etiquetas manuales (warnings `bg_failed` / `tag_failed`).
 - **Capa de datos** `src/lib/store/`: interfaz `DataStore` con dos implementaciones, `supabaseStore` (si hay env vars) y `localStore` (IndexedDB con Dexie, **modo demo**). La UI usa `useGarments()` (`lib/garments.tsx`). Mantené esa simetría al agregar entidades.
 - Imágenes: cuadradas, recortadas al contenido con margen, WebP con alfa (o PNG en Safari). `image` 900 px y `thumb` 400 px. En Supabase van al bucket privado `garments/<uid>/<id>.<ext>` y se leen con URLs firmadas.
@@ -71,11 +72,12 @@ src/pages/                  Closet, AddGarments, Profile, Placeholders (Outfits,
 
 ## 5. Estado actual
 - ✅ **Entrega 1 (clóset):** base de la app, temas, i18n, auth, Supabase + modo demo, carga múltiple con IA y revisión editable, grilla, búsqueda, filtros (categoría/color/marca), detalle, edición y borrado, perfil (tema, idioma, precarga de modelos).
-- ⚠️ **Sin verificar en un entorno real** (se construyó sin acceso a internet):
-  1. Que RMBG-1.4 cargue y recorte bien con `model_type: 'isnet'` en Transformers.js v4 (Chrome de escritorio y Safari iOS). Si no anda, probar `onnx-community/BiRefNet_lite-ONNX` (MIT) o ajustar la config o el preprocesado.
-  2. Que CLIP clasifique razonablemente. Ajustar prompts y umbrales en `process.ts` / `taxonomy.ts`.
-  3. El flujo completo con Supabase (alta de usuario, subida a Storage, URLs firmadas, RLS).
-  4. Rendimiento y memoria en iPhone (wasm). Si es pesado, procesar a menor resolución o forzar q8.
+- ✅ **Verificado en Chrome de escritorio (2026-11-16)** con 5 fotos reales (remera, jean, zapatillas, gorra, buzo):
+  1. RMBG-1.4 con `model_type: 'isnet'` recorta muy bien en WebGPU fp32 (~1–2 s por foto) y en wasm q8 (~15 s, un solo hilo). El ONNX tiene la entrada fija en 1024 px (no se puede achicar).
+  2. CLIP clasifica bien tras los cambios de arriba (prompts más descriptivos para remera/chomba/camisa, texto precalculado, umbrales).
+  3. Flujo completo con Supabase (proyecto `lcmesamjjujutzfxytgl`, São Paulo): alta de usuario, subida a Storage (`garments/<uid>/<id>.webp` + `_thumb`), URLs firmadas, edición (trigger `updated_at`), borrado de fila + archivos, y RLS (sin sesión: select vacío, insert rechazado 42501, Storage 400).
+- ⚠️ **Pendiente:**
+  4. Rendimiento y memoria en iPhone. Safari de iOS 26 trae WebGPU (usaría el camino rápido); si no, wasm de un hilo (lento). Para multihilo haría falta COOP/COEP, que complica las imágenes de Supabase.
 - Probado: typecheck, build, UI en móvil y escritorio, claro y oscuro (Playwright + Chrome) y camino de respaldo sin IA.
 
 ## 6. Próximas entregas (en este orden)
