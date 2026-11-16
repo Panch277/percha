@@ -2,9 +2,9 @@ import { useTranslation } from 'react-i18next'
 import type { Occasion, OutfitSlots, Slot } from '../lib/outfits/engine'
 import type { GarmentWithImage } from '../lib/store'
 import { type Lang, STYLES, type StyleKey } from '../lib/taxonomy'
-import { IconBookmark, IconPencil, IconSparkle, IconThumbDown, IconThumbUp } from './Icons'
+import { IconBookmark, IconCalendar, IconPencil, IconSparkle, IconThumbDown, IconThumbUp } from './Icons'
 import { OutfitCollage } from './OutfitCollage'
-import { cx } from './ui'
+import { cx, Spinner } from './ui'
 
 export const EDIT_SLOTS: Slot[] = ['top', 'bottom', 'footwear', 'outerwear', 'headwear', 'eyewear', 'accessory']
 
@@ -24,6 +24,8 @@ export function OutfitCard({
   onSave,
   onToggleEdit,
   onSlot,
+  onAssign,
+  assigning,
 }: {
   occasion: Occasion
   style: StyleKey
@@ -36,6 +38,9 @@ export function OutfitCard({
   onSave: () => void
   onToggleEdit: () => void
   onSlot: (s: Slot) => void
+  /** modo planificar (desde el calendario): reemplaza guardar y probármelo por "Asignar al día" */
+  onAssign?: () => void
+  assigning?: boolean
 }) {
   const { t, i18n } = useTranslation()
   const lang = (i18n.language.startsWith('en') ? 'en' : 'es') as Lang
@@ -81,25 +86,46 @@ export function OutfitCard({
           <IconBtn label={t('outfits.dislike')} active={vote === -1} onClick={() => onVote(-1)} disabled={vote !== null}>
             <IconThumbDown size={22} fill={vote === -1 ? 'currentColor' : 'none'} />
           </IconBtn>
-          <IconBtn label={saved ? t('outfits.saved') : t('outfits.save')} active={saved} onClick={onSave}>
-            <IconBookmark size={21} fill={saved ? 'currentColor' : 'none'} />
-          </IconBtn>
-          {/* Prueba virtual: llega en la entrega 4 */}
-          <button
-            type="button"
-            disabled
-            className="ml-auto flex h-10 flex-col items-center justify-center rounded-full bg-ink px-4 text-on-ink opacity-45"
-            title={t('common.soon')}
-          >
-            <span className="flex items-center gap-1.5 text-[13px] leading-none font-semibold">
-              <IconSparkle size={15} />
-              {t('outfits.tryOn')}
-            </span>
-            <span className="mt-0.5 text-[9.5px] leading-none font-medium tracking-wide uppercase">{t('common.soon')}</span>
-          </button>
+          {onAssign ? (
+            <button
+              type="button"
+              onClick={onAssign}
+              disabled={assigning}
+              className="ml-auto inline-flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-[13.5px] font-semibold whitespace-nowrap text-on-ink transition active:scale-95 disabled:opacity-50"
+            >
+              {assigning ? <Spinner className="h-4 w-4" /> : <IconCalendar size={17} />}
+              {t('outfits.assignDay')}
+            </button>
+          ) : (
+            <>
+              <IconBtn label={saved ? t('outfits.saved') : t('outfits.save')} active={saved} onClick={onSave}>
+                <IconBookmark size={21} fill={saved ? 'currentColor' : 'none'} />
+              </IconBtn>
+              <TryOnSoon />
+            </>
+          )}
         </div>
       )}
     </article>
+  )
+}
+
+/** Prueba virtual: llega en la entrega 4 */
+function TryOnSoon() {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      disabled
+      className="ml-auto flex h-10 flex-col items-center justify-center rounded-full bg-ink px-4 text-on-ink opacity-45"
+      title={t('common.soon')}
+    >
+      <span className="flex items-center gap-1.5 text-[13px] leading-none font-semibold">
+        <IconSparkle size={15} />
+        {t('outfits.tryOn')}
+      </span>
+      <span className="mt-0.5 text-[9.5px] leading-none font-medium tracking-wide uppercase">{t('common.soon')}</span>
+    </button>
   )
 }
 

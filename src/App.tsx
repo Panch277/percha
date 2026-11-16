@@ -8,7 +8,7 @@ import { type ThemePref, useTheme } from './lib/theme'
 import AddGarments from './pages/AddGarments'
 import Closet from './pages/Closet'
 import Outfits from './pages/Outfits'
-import { Calendar } from './pages/Placeholders'
+import Calendar from './pages/Calendar'
 import Profile from './pages/Profile'
 
 const ThemeCtx = createContext<readonly [ThemePref, (t: ThemePref) => void]>(['system', () => {}])

@@ -1,23 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
-import {
-  IconBack,
-  IconChevron,
-  IconCloud,
-  IconPin,
-  IconRain,
-  IconShuffle,
-  IconSnow,
-  IconStorm,
-  IconSun,
-  IconTrash,
-} from '../components/Icons'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { IconBack, IconCalendar, IconChevron, IconShuffle, IconX } from '../components/Icons'
 import { PageHeader } from '../components/Layout'
-import { OutfitCard, styleLabel } from '../components/OutfitCard'
-import { OutfitCollage } from '../components/OutfitCollage'
+import { OutfitCard } from '../components/OutfitCard'
+import { OutfitTile, SavedOutfitSheet } from '../components/SavedOutfit'
 import { SwapSheet } from '../components/SwapSheet'
-import { Button, Chip, cx, Sheet, Spinner } from '../components/ui'
+import { Button, Chip, cx, Spinner } from '../components/ui'
+import { WeatherPill } from '../components/WeatherPill'
+import { fmtDate, monthOf, recentUse } from '../lib/calendar'
 import { useGarments } from '../lib/garments'
 import { useOutfits } from '../lib/outfits/context'
 import {
@@ -33,10 +24,10 @@ import {
   styleOf,
   swapOptions,
 } from '../lib/outfits/engine'
-import type { GarmentWithImage, Outfit } from '../lib/store'
+import type { Outfit } from '../lib/store'
 import type { Lang, StyleKey } from '../lib/taxonomy'
-import { useDayWeather, type WeatherState } from '../lib/useDayWeather'
-import { isoDate, weatherKind } from '../lib/weather'
+import { useDayWeather } from '../lib/useDayWeather'
+import { isoDate } from '../lib/weather'
 
 interface Card {
   id: string
@@ -47,6 +38,7 @@ interface Card {
 
 const OCC_KEY = 'percha.occasion'
 const DAY = 86400000
+const ISO = /^\d{4}-\d{2}-\d{2}$/
 
 function readOccasion(): Occasion {
   try {
@@ -57,55 +49,39 @@ function readOccasion(): Occasion {
   }
 }
 
-/** Prendas usadas en outfits guardados con fecha cercana (±7 días): id → días de distancia */
-function recentUse(saved: Outfit[], date: string) {
-  const day = Date.parse(date)
-  const out: Record<string, number> = {}
-  for (const o of saved) {
-    if (!o.date) continue
-    const d = Math.abs(day - Date.parse(o.date)) / DAY
-    if (d === 0 || d >= 7) continue
-    for (const id of o.itemIds) out[id] = Math.min(out[id] ?? 99, d)
-  }
-  return out
-}
-
-/** Arma los lugares del collage a partir de una lista de prendas guardada */
-function slotsFromIds(ids: string[], garments: Map<string, GarmentWithImage>): OutfitSlots {
-  const slots: OutfitSlots = {}
-  for (const id of ids) {
-    const g = garments.get(id)
-    const s = g && slotOf(g)
-    if (s && !slots[s]) slots[s] = id
-  }
-  return slots
-}
-
 export default function Outfits() {
   const { t, i18n } = useTranslation()
   const lang = (i18n.language.startsWith('en') ? 'en' : 'es') as Lang
   const nav = useNavigate()
+  const [params] = useSearchParams()
+  // modo planificar: se llega desde el calendario con ?plan=YYYY-MM-DD
+  const planParam = params.get('plan')
+  const plan = planParam && ISO.test(planParam) ? planParam : null
+
   const { items, loading } = useGarments()
-  const { saved, prefs, loading: prefsLoading, save, remove, vote } = useOutfits()
+  const { saved, prefs, days, loading: prefsLoading, save, remove, vote, assignDay } = useOutfits()
 
   const [occasion, setOccasionState] = useState<Occasion>(readOccasion)
-  const [date, setDate] = useState(isoDate)
+  const [pickedDate, setDate] = useState(isoDate)
+  const date = plan ?? pickedDate
   const [round, setRound] = useState(0)
   const [cards, setCards] = useState<Card[]>([])
   const [missing, setMissing] = useState<Slot[]>([])
   const [editing, setEditing] = useState<string | null>(null)
   const [swap, setSwap] = useState<{ card: string; slot: Slot } | null>(null)
   const [openSaved, setOpenSaved] = useState<Outfit | null>(null)
-  const [busySave, setBusySave] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
 
   const wx = useDayWeather(date, prefs.city, !prefsLoading)
   const weather = wx.status === 'ok' ? wx.w : null
   const garments = useMemo(() => new Map(items.map((g) => [g.id, g])), [items])
-  const recent = useMemo(() => recentUse(saved, date), [saved, date])
+  const itemsByOutfit = useMemo(() => new Map(saved.map((o) => [o.id, o.itemIds])), [saved])
+  // uso reciente: lo planificado en el calendario a ±7 días de la fecha elegida
+  const recent = useMemo(() => recentUse(days, itemsByOutfit, date), [days, itemsByOutfit, date])
   const savedByKey = useMemo(() => new Map(saved.map((o) => [[...o.itemIds].sort().join(','), o])), [saved])
 
-  // Pesos y uso reciente se leen al generar, pero no regeneran: votar o guardar no tiene que
-  // cambiar las tarjetas que estás mirando
+  // Pesos y uso reciente se leen al generar, pero no regeneran: votar, guardar o asignar no
+  // tiene que cambiar las tarjetas que estás mirando
   const ctxRef = useRef({ prefs: prefs.weights, recent })
   ctxRef.current = { prefs: prefs.weights, recent }
 
@@ -121,7 +97,7 @@ export default function Outfits() {
   const scroller = useRef<HTMLDivElement>(null)
   const wxReady = wx.status !== 'loading'
   useEffect(() => {
-    if (loading || !wxReady) return
+    if (loading || prefsLoading || !wxReady) return
     const r = generate({
       garments: items,
       occasion,
@@ -136,7 +112,7 @@ export default function Outfits() {
     setEditing(null)
     scroller.current?.scrollTo({ left: 0 })
     // el clima entra por sus valores, no por la identidad del objeto
-  }, [items, loading, occasion, date, round, wxReady, weather?.tMax, weather?.tMin, weather?.rainProb])
+  }, [items, loading, prefsLoading, occasion, date, round, wxReady, weather?.tMax, weather?.tMin, weather?.rainProb])
 
   // ── Carrusel ──
   const [index, setIndex] = useState(0)
@@ -162,12 +138,25 @@ export default function Outfits() {
 
   async function onSave(c: Card) {
     const existing = savedByKey.get(outfitKey(c.slots))
-    setBusySave(c.id)
+    setBusy(c.id)
     try {
       if (existing) await remove(existing.id)
       else await save({ occasion, style: c.style, itemIds: outfitIds(c.slots), date })
     } finally {
-      setBusySave(null)
+      setBusy(null)
+    }
+  }
+
+  /** Modo planificar: guarda el outfit (si no estaba) y lo asigna al día del calendario */
+  async function onAssign(c: Card) {
+    if (!plan) return
+    setBusy(c.id)
+    try {
+      const o = savedByKey.get(outfitKey(c.slots)) ?? (await save({ occasion, style: c.style, itemIds: outfitIds(c.slots), date: plan }))
+      await assignDay(plan, o.id)
+      nav(`/calendar?m=${monthOf(plan)}`)
+    } finally {
+      setBusy(null)
     }
   }
 
@@ -195,8 +184,11 @@ export default function Outfits() {
     [swap, swapCard, items, occasion, weather, recent, prefs.weights],
   )
 
+  // fechas del día para los chips (se recalculan en cada render: alcanza)
   const today = isoDate()
-  const tomorrow = isoDate(new Date(Date.now() + DAY))
+  const tomorrow = isoDate(new Date(new Date().getTime() + DAY))
+  const otherDate = date !== today && date !== tomorrow
+  const dayName = (d: string) => fmtDate(d, lang, { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
     <>
@@ -204,6 +196,22 @@ export default function Outfits() {
 
       {/* Ocasión, fecha y clima */}
       <div className="space-y-3 px-5 pt-3 md:px-10">
+        {plan && (
+          <div className="flex items-center gap-3 rounded-2xl bg-ink px-4 py-3 text-on-ink">
+            <IconCalendar size={20} className="shrink-0" />
+            <p className="min-w-0 flex-1 text-[14px] leading-snug">
+              {t('outfits.planning')} <span className="font-semibold">{dayName(plan)}</span>
+            </p>
+            <button
+              type="button"
+              onClick={() => nav(`/calendar?m=${monthOf(plan)}`)}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-on-ink/15"
+              aria-label={t('common.cancel')}
+            >
+              <IconX size={18} />
+            </button>
+          </div>
+        )}
         <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 md:mx-0 md:px-0">
           {OCCASIONS.map((o) => (
             <Chip key={o} active={occasion === o} onClick={() => setOccasion(o)}>
@@ -212,36 +220,38 @@ export default function Outfits() {
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Chip active={date === today} onClick={() => setDate(today)}>
-            {t('outfits.today')}
-          </Chip>
-          <Chip active={date === tomorrow} onClick={() => setDate(tomorrow)}>
-            {t('outfits.tomorrow')}
-          </Chip>
-          <label
-            className={cx(
-              'relative inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium',
-              date !== today && date !== tomorrow ? 'bg-ink text-on-ink' : 'bg-surface text-ink',
-            )}
-          >
-            {date !== today && date !== tomorrow
-              ? new Intl.DateTimeFormat(lang, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(date))
-              : t('outfits.pickDate')}
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => e.target.value && setDate(e.target.value)}
-              className="absolute inset-0 cursor-pointer opacity-0"
-              aria-label={t('outfits.pickDate')}
-            />
-          </label>
+          {!plan && (
+            <>
+              <Chip active={date === today} onClick={() => setDate(today)}>
+                {t('outfits.today')}
+              </Chip>
+              <Chip active={date === tomorrow} onClick={() => setDate(tomorrow)}>
+                {t('outfits.tomorrow')}
+              </Chip>
+              <label
+                className={cx(
+                  'relative inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium',
+                  otherDate ? 'bg-ink text-on-ink' : 'bg-surface text-ink',
+                )}
+              >
+                {otherDate ? fmtDate(date, lang, { weekday: 'short', day: 'numeric', month: 'short' }) : t('outfits.pickDate')}
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => e.target.value && setDate(e.target.value)}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  aria-label={t('outfits.pickDate')}
+                />
+              </label>
+            </>
+          )}
           <WeatherPill wx={wx} onSetCity={() => nav('/profile')} />
         </div>
       </div>
 
       {/* Propuestas */}
       <section className="mt-5">
-        {loading || !wxReady ? (
+        {loading || prefsLoading || !wxReady ? (
           <div className="grid h-80 place-items-center text-muted">
             <Spinner />
           </div>
@@ -260,32 +270,32 @@ export default function Outfits() {
           <Empty text={t('outfits.noProposals')} />
         ) : (
           <>
-            <div className="relative">
-              <div
-                ref={scroller}
-                onScroll={onScroll}
-                className="no-scrollbar flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto scroll-smooth px-5 pb-2 md:scroll-px-10 md:px-10"
-              >
-                {cards.map((c) => (
-                  <div key={c.id} className="w-[86%] max-w-[380px] shrink-0 snap-center md:w-[360px] md:snap-start">
-                    <OutfitCard
-                      occasion={occasion}
-                      style={c.style}
-                      slots={c.slots}
-                      garments={garments}
-                      vote={c.vote}
-                      saved={savedByKey.has(outfitKey(c.slots)) || busySave === c.id}
-                      editing={editing === c.id}
-                      onVote={(v) => onVote(c, v)}
-                      onSave={() => onSave(c)}
-                      onToggleEdit={() => setEditing(editing === c.id ? null : c.id)}
-                      onSlot={(slot) => setSwap({ card: c.id, slot })}
-                    />
-                  </div>
-                ))}
-                {/* espacio al final para que la última tarjeta pueda quedar centrada */}
-                <div className="w-1 shrink-0" />
-              </div>
+            <div
+              ref={scroller}
+              onScroll={onScroll}
+              className="no-scrollbar flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto scroll-smooth px-5 pb-2 md:scroll-px-10 md:px-10"
+            >
+              {cards.map((c) => (
+                <div key={c.id} className="w-[86%] max-w-[380px] shrink-0 snap-center md:w-[360px] md:snap-start">
+                  <OutfitCard
+                    occasion={occasion}
+                    style={c.style}
+                    slots={c.slots}
+                    garments={garments}
+                    vote={c.vote}
+                    saved={savedByKey.has(outfitKey(c.slots)) || busy === c.id}
+                    editing={editing === c.id}
+                    onVote={(v) => onVote(c, v)}
+                    onSave={() => onSave(c)}
+                    onToggleEdit={() => setEditing(editing === c.id ? null : c.id)}
+                    onSlot={(slot) => setSwap({ card: c.id, slot })}
+                    onAssign={plan ? () => onAssign(c) : undefined}
+                    assigning={busy === c.id}
+                  />
+                </div>
+              ))}
+              {/* espacio al final para que la última tarjeta pueda quedar centrada */}
+              <div className="w-1 shrink-0" />
             </div>
             <div className="mt-2 flex items-center justify-between px-5 md:px-10">
               <div className="flex items-center gap-1">
@@ -318,29 +328,21 @@ export default function Outfits() {
         )}
       </section>
 
-      {/* Guardados */}
-      <section className="mt-10 px-5 md:px-10">
-        <h2 className="text-[20px] font-bold tracking-[-0.02em]">{t('outfits.savedTitle')}</h2>
-        {saved.length === 0 ? (
-          <p className="mt-2 max-w-md text-[14px] leading-relaxed text-muted">{t('outfits.savedEmpty')}</p>
-        ) : (
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {saved.map((o) => (
-              <button key={o.id} type="button" onClick={() => setOpenSaved(o)} className="overflow-hidden rounded-2xl bg-surface text-left">
-                <OutfitCollage slots={slotsFromIds(o.itemIds, garments)} garments={garments} />
-                <div className="px-3 py-2">
-                  <div className="truncate text-[13.5px] font-bold">{t(`outfits.occasions.${o.occasion}`)}</div>
-                  <div className="truncate text-[12.5px] text-muted">
-                    {styleLabel(o.style, lang)}
-                    {o.date &&
-                      ` · ${new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(o.date))}`}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
+      {/* Guardados (en modo planificar no hacen falta) */}
+      {!plan && (
+        <section className="mt-10 px-5 md:px-10">
+          <h2 className="text-[20px] font-bold tracking-[-0.02em]">{t('outfits.savedTitle')}</h2>
+          {saved.length === 0 ? (
+            <p className="mt-2 max-w-md text-[14px] leading-relaxed text-muted">{t('outfits.savedEmpty')}</p>
+          ) : (
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {saved.map((o) => (
+                <OutfitTile key={o.id} outfit={o} garments={garments} onClick={() => setOpenSaved(o)} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <SwapSheet
         slot={swap?.slot ?? null}
@@ -351,42 +353,8 @@ export default function Outfits() {
         onClose={() => setSwap(null)}
       />
 
-      <SavedSheet outfit={openSaved} garments={garments} onClose={() => setOpenSaved(null)} onDelete={remove} />
+      <SavedOutfitSheet outfit={openSaved} garments={garments} onClose={() => setOpenSaved(null)} />
     </>
-  )
-}
-
-function WeatherPill({ wx, onSetCity }: { wx: WeatherState; onSetCity: () => void }) {
-  const { t } = useTranslation()
-  const base = 'inline-flex h-9 items-center gap-2 rounded-full bg-surface px-4 text-[13px]'
-  if (wx.status === 'loading')
-    return (
-      <span className={cx(base, 'text-muted')}>
-        <Spinner className="h-3.5 w-3.5" />
-        {t('outfits.wxLoading')}
-      </span>
-    )
-  if (wx.status === 'noLocation')
-    return (
-      <button type="button" onClick={onSetCity} className={cx(base, 'font-medium text-accent')}>
-        <IconPin size={16} />
-        {t('outfits.wxSetCity')}
-      </button>
-    )
-  if (wx.status !== 'ok')
-    return <span className={cx(base, 'text-muted')}>{t(wx.status === 'outOfRange' ? 'outfits.wxOutOfRange' : 'outfits.wxNone')}</span>
-
-  const { w, place } = wx
-  const Icon = { sun: IconSun, cloud: IconCloud, rain: IconRain, snow: IconSnow, storm: IconStorm }[weatherKind(w.code)]
-  return (
-    <span className={base}>
-      <Icon size={17} />
-      <span className="font-semibold tabular-nums">
-        {Math.round(w.tMax)}° <span className="font-normal text-muted">/ {Math.round(w.tMin)}°</span>
-      </span>
-      {w.rainProb >= 20 && <span className="text-muted">· {t('outfits.wxRain', { p: Math.round(w.rainProb) })}</span>}
-      {place && <span className="hidden text-muted sm:inline">· {place}</span>}
-    </span>
   )
 }
 
@@ -400,62 +368,5 @@ function Empty({ text, cta, onCta }: { text: string; cta?: string; onCta?: () =>
         </Button>
       )}
     </div>
-  )
-}
-
-function SavedSheet({
-  outfit,
-  garments,
-  onClose,
-  onDelete,
-}: {
-  outfit: Outfit | null
-  garments: Map<string, GarmentWithImage>
-  onClose: () => void
-  onDelete: (id: string) => Promise<void>
-}) {
-  const { t, i18n } = useTranslation()
-  const lang = (i18n.language.startsWith('en') ? 'en' : 'es') as Lang
-  const [busy, setBusy] = useState(false)
-  if (!outfit) return <Sheet open={false} onClose={onClose}>{null}</Sheet>
-  const incomplete = outfit.itemIds.some((id) => !garments.has(id))
-
-  async function del() {
-    if (!outfit || !confirm(t('outfits.deleteConfirm'))) return
-    setBusy(true)
-    try {
-      await onDelete(outfit.id)
-      onClose()
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Sheet
-      open
-      onClose={onClose}
-      title={
-        <span>
-          {t(`outfits.occasions.${outfit.occasion}`)} <span className="font-normal text-muted">· {styleLabel(outfit.style, lang)}</span>
-        </span>
-      }
-    >
-      <div className="mx-auto max-w-sm overflow-hidden rounded-3xl">
-        <OutfitCollage slots={slotsFromIds(outfit.itemIds, garments)} garments={garments} />
-      </div>
-      {outfit.date && (
-        <p className="mt-3 text-center text-[14px] text-muted">
-          {new Intl.DateTimeFormat(lang, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(outfit.date))}
-        </p>
-      )}
-      {incomplete && <p className="mt-2 text-center text-[13px] text-danger">{t('outfits.incomplete')}</p>}
-      <div className="mt-5 flex justify-center">
-        <Button variant="danger" onClick={del} disabled={busy}>
-          <IconTrash size={18} />
-          {t('common.delete')}
-        </Button>
-      </div>
-    </Sheet>
   )
 }

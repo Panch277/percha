@@ -36,17 +36,23 @@ export function OutfitCollage({
   className,
   onSlot,
   activeSlot,
+  compact,
 }: {
   slots: OutfitSlots
   garments: Map<string, GarmentWithImage>
   className?: string
+  /** miniatura (calendario): solo la columna principal, sin gorra/lentes/reloj, para que se vea más grande */
+  compact?: boolean
   /** si se pasa, cada prenda es tocable (modo edición) */
   onSlot?: (s: Slot) => void
   activeSlot?: Slot | null
 }) {
   // solo las prendas que siguen existiendo en el clóset
   const present: OutfitSlots = {}
-  for (const [s, id] of Object.entries(slots) as [Slot, string][]) if (id && garments.has(id)) present[s] = id
+  for (const [s, id] of Object.entries(slots) as [Slot, string][]) {
+    if (compact && (s === 'headwear' || s === 'eyewear' || s === 'accessory')) continue
+    if (id && garments.has(id)) present[s] = id
+  }
   const boxes = layout(present)
 
   return (
