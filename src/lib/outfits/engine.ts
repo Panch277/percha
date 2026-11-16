@@ -146,6 +146,17 @@ export function slotOf(g: EngineGarment): Slot | null {
   return g.category
 }
 
+/** Lugares del collage a partir de una lista de prendas guardada (las borradas se omiten) */
+export function slotsFromIds(ids: string[], garments: Map<string, EngineGarment>): OutfitSlots {
+  const slots: OutfitSlots = {}
+  for (const id of ids) {
+    const g = garments.get(id)
+    const s = g && slotOf(g)
+    if (s && !slots[s]) slots[s] = id
+  }
+  return slots
+}
+
 export function outfitIds(slots: OutfitSlots) {
   return SLOTS.map((s) => slots[s]).filter((x): x is string => !!x)
 }
