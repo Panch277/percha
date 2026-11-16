@@ -51,10 +51,9 @@ export function applyAlpha(src: HTMLCanvasElement, alpha: Uint8ClampedArray, aw:
   return out
 }
 
-/** Recorta al contenido visible y lo centra en un cuadrado con margen. */
-export function trimToSquare(src: HTMLCanvasElement, margin = 0.07, alphaThreshold = 24) {
-  const g = ctx2d(src)
-  const { data, width, height } = g.getImageData(0, 0, src.width, src.height)
+/** Caja del contenido visible (píxeles con alfa por encima del umbral); todo el lienzo si no hay */
+export function contentBox(src: HTMLCanvasElement, alphaThreshold = 24) {
+  const { data, width, height } = ctx2d(src).getImageData(0, 0, src.width, src.height)
   let minX = width
   let minY = height
   let maxX = -1
@@ -69,14 +68,31 @@ export function trimToSquare(src: HTMLCanvasElement, margin = 0.07, alphaThresho
       }
     }
   }
-  if (maxX < 0) {
-    minX = 0
-    minY = 0
-    maxX = width - 1
-    maxY = height - 1
-  }
-  const w = maxX - minX + 1
-  const h = maxY - minY + 1
+  if (maxX < 0) return { x: 0, y: 0, w: width, h: height }
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }
+}
+
+/**
+ * Encaja el contenido visible de `src` en un lienzo de w×h con fondo `bg`, dejando `margin`
+ * (fracción) arriba y abajo. Sirve para la prueba virtual, que espera fotos 3:4.
+ */
+export function fitInto(src: HTMLCanvasElement, w: number, h: number, bg: string, margin = 0.04) {
+  const box = contentBox(src)
+  const out = canvas(w, h)
+  const g = ctx2d(out)
+  g.fillStyle = bg
+  g.fillRect(0, 0, w, h)
+  const s = Math.min((w * (1 - margin * 2)) / box.w, (h * (1 - margin * 2)) / box.h)
+  const dw = box.w * s
+  const dh = box.h * s
+  g.imageSmoothingQuality = 'high'
+  g.drawImage(src, box.x, box.y, box.w, box.h, (w - dw) / 2, (h - dh) / 2, dw, dh)
+  return out
+}
+
+/** Recorta al contenido visible y lo centra en un cuadrado con margen. */
+export function trimToSquare(src: HTMLCanvasElement, margin = 0.07, alphaThreshold = 24) {
+  const { x: minX, y: minY, w, h } = contentBox(src, alphaThreshold)
   const side = Math.ceil(Math.max(w, h) * (1 + margin * 2))
   const out = canvas(side, side)
   ctx2d(out).drawImage(src, minX, minY, w, h, (side - w) / 2, (side - h) / 2, w, h)
