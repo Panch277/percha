@@ -1,16 +1,25 @@
 import Dexie, { type Table } from 'dexie'
-import type { DataStore, Garment, GarmentWithImage, NewGarmentPayload } from './types'
+import { EMPTY_PREFS } from '../outfits/engine'
+import type { DataStore, Garment, GarmentWithImage, NewGarmentPayload, Outfit, UserPrefs } from './types'
 
 interface LocalRow extends Garment {
   image: Blob
   thumb: Blob
 }
 
+interface PrefsRow extends UserPrefs {
+  key: 'me'
+}
+
 class LocalDB extends Dexie {
   garments!: Table<LocalRow, string>
+  outfits!: Table<Outfit, string>
+  prefs!: Table<PrefsRow, string>
   constructor() {
     super('percha')
     this.version(1).stores({ garments: 'id, category, brand, createdAt' })
+    // v2 (entrega 2): outfits guardados y preferencias
+    this.version(2).stores({ outfits: 'id, createdAt', prefs: 'key' })
   }
 }
 
@@ -24,7 +33,8 @@ function withUrls(row: LocalRow): GarmentWithImage {
     urlCache.set(row.id, urls)
   }
   const { image: _i, thumb: _t, ...rest } = row
-  return { ...rest, imageUrl: urls.image, thumbUrl: urls.thumb }
+  // las prendas cargadas antes de la entrega 2 no tienen `pattern`
+  return { ...rest, pattern: rest.pattern ?? false, imageUrl: urls.image, thumbUrl: urls.thumb }
 }
 
 function revoke(id: string) {
@@ -53,5 +63,25 @@ export const localStore: DataStore = {
   async remove(id) {
     await db.garments.delete(id)
     revoke(id)
+  },
+
+  async listOutfits() {
+    return db.outfits.orderBy('createdAt').reverse().toArray()
+  },
+  async addOutfit(o) {
+    const row: Outfit = { ...o, id: crypto.randomUUID(), tryonPath: null, createdAt: new Date().toISOString() }
+    await db.outfits.add(row)
+    return row
+  },
+  async removeOutfit(id) {
+    await db.outfits.delete(id)
+  },
+
+  async getPrefs() {
+    const row = await db.prefs.get('me')
+    return { weights: row?.weights ?? EMPTY_PREFS, city: row?.city ?? null }
+  },
+  async savePrefs(p) {
+    await db.prefs.put({ ...p, key: 'me' })
   },
 }

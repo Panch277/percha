@@ -28,6 +28,11 @@ const BRAND_MIN = 0.5
 /** Jean con luz cálida → denim 0.88; zapatillas azul marino → navy 0.50 */
 const COLOR_MIN = 0.45
 const STYLE_SECOND_MIN = 0.22
+/**
+ * Estampado: rayas 0.93 y hawaiana 0.53; ropa lisa ≤ 0.32 (remera con logo chico 0.25).
+ * Solo en ropa: un reloj da 0.85 por el dial y no importa para combinar.
+ */
+const PATTERN_MIN = 0.45
 
 type Ranked = { label: string; score: number }[]
 /** Devuelve la clave de taxonomía del puesto i del ranking de un grupo */
@@ -70,6 +75,7 @@ export async function processPhoto(file: File, lang: Lang): Promise<ProcessedPho
   let subKey = 'tshirt'
   let styles: StyleKey[] = ['casual']
   let brandGuess: string | null = null
+  let pattern = false
   try {
     const onWhite = await toBlob(resizeTo(square, 336, '#ffffff'), 'image/jpeg', 0.9)
     const groups = Object.fromEntries(Object.entries(CLIP_GROUPS).map(([k, g]) => [k, g.prompts]))
@@ -87,6 +93,10 @@ export async function processPhoto(file: File, lang: Lang): Promise<ProcessedPho
 
     const b0 = keyAt('brand', r.brand)
     if (b0?.key && b0.score >= BRAND_MIN) brandGuess = b0.key
+
+    const p0 = keyAt('pattern', r.pattern)
+    const apparel = !['eyewear', 'accessory'].includes(SUB_BY_KEY[subKey].category)
+    pattern = apparel && p0?.key === 'pattern' && p0.score >= PATTERN_MIN
   } catch (e) {
     console.warn('[process] sin etiquetas', e)
     warnings.push('tag_failed')
@@ -107,6 +117,7 @@ export async function processPhoto(file: File, lang: Lang): Promise<ProcessedPho
       styles,
       warmth: def.warmth,
       formality: def.formality,
+      pattern,
     },
   }
 }

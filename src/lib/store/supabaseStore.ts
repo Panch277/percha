@@ -1,5 +1,6 @@
+import { EMPTY_PREFS } from '../outfits/engine'
 import { BUCKET, supabase } from '../supabase'
-import type { DataStore, Garment, GarmentInput, GarmentWithImage, NewGarmentPayload } from './types'
+import type { City, DataStore, Garment, GarmentInput, GarmentWithImage, NewGarmentPayload, Outfit } from './types'
 
 /** Fila tal como está en Postgres (snake_case) */
 interface Row {
@@ -13,6 +14,7 @@ interface Row {
   styles: Garment['styles']
   warmth: 1 | 2 | 3
   formality: 1 | 2 | 3
+  pattern: boolean | null
   image_path: string
   thumb_path: string
   created_at: string
@@ -36,6 +38,7 @@ function fromRow(r: Row, imageUrl: string, thumbUrl: string): GarmentWithImage {
     styles: r.styles ?? [],
     warmth: r.warmth,
     formality: r.formality,
+    pattern: r.pattern ?? false,
     createdAt: r.created_at,
     imageUrl,
     thumbUrl,
@@ -53,6 +56,35 @@ async function sign(paths: string[]) {
   const { data, error } = await sb().storage.from(BUCKET).createSignedUrls(paths, SIGNED_TTL)
   if (error) throw error
   return new Map(data.map((d) => [d.path ?? '', d.signedUrl]))
+}
+
+interface OutfitRow {
+  id: string
+  occasion: Outfit['occasion']
+  style: Outfit['style']
+  item_ids: string[]
+  date: string | null
+  tryon_path: string | null
+  created_at: string
+}
+
+function outfitFromRow(r: OutfitRow): Outfit {
+  return {
+    id: r.id,
+    occasion: r.occasion,
+    style: r.style,
+    itemIds: r.item_ids ?? [],
+    date: r.date,
+    tryonPath: r.tryon_path,
+    createdAt: r.created_at,
+  }
+}
+
+async function uid() {
+  const { data } = await sb().auth.getUser()
+  const id = data.user?.id
+  if (!id) throw new Error('Sesión vencida')
+  return id
 }
 
 function ext(b: Blob) {
@@ -107,5 +139,39 @@ export const supabaseStore: DataStore = {
     const del = await sb().from('garments').delete().eq('id', id)
     if (del.error) throw del.error
     await sb().storage.from(BUCKET).remove([data.image_path, data.thumb_path])
+  },
+
+  async listOutfits() {
+    const { data, error } = await sb().from('outfits').select('*').order('created_at', { ascending: false })
+    if (error) throw error
+    return ((data ?? []) as OutfitRow[]).map(outfitFromRow)
+  },
+
+  async addOutfit(o) {
+    const { data, error } = await sb()
+      .from('outfits')
+      .insert({ occasion: o.occasion, style: o.style, item_ids: o.itemIds, date: o.date })
+      .select('*')
+      .single()
+    if (error) throw error
+    return outfitFromRow(data as OutfitRow)
+  },
+
+  async removeOutfit(id) {
+    const { error } = await sb().from('outfits').delete().eq('id', id)
+    if (error) throw error
+  },
+
+  async getPrefs() {
+    const { data, error } = await sb().from('preferences').select('weights, city').maybeSingle()
+    if (error) throw error
+    return { weights: data?.weights ?? EMPTY_PREFS, city: (data?.city as City | null) ?? null }
+  },
+
+  async savePrefs(p) {
+    const { error } = await sb()
+      .from('preferences')
+      .upsert({ user_id: await uid(), weights: p.weights, city: p.city }, { onConflict: 'user_id' })
+    if (error) throw error
   },
 }

@@ -143,6 +143,17 @@ export function GarmentForm({
         </div>
       </Field>
 
+      <Field label={t('garment.pattern')}>
+        <Segmented
+          value={value.pattern ? 'yes' : 'no'}
+          onChange={(v) => set({ pattern: v === 'yes' })}
+          options={[
+            { value: 'no', label: t('garment.patternNo') },
+            { value: 'yes', label: t('garment.patternYes') },
+          ]}
+        />
+      </Field>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t('garment.warmth')}>
           <Segmented

@@ -87,6 +87,7 @@ export function GarmentSheet({ id, onClose }: { id: string | null; onClose: () =
               }
             />
             <Row k={t('garment.styles')} v={g.styles.map((s) => STYLES.find((x) => x.key === s)?.label[lang]).join(' · ') || '—'} />
+            <Row k={t('garment.pattern')} v={t(g.pattern ? 'garment.patternYes' : 'garment.patternNo')} />
             <Row k={t('garment.warmth')} v={warmth[g.warmth - 1]} />
             <Row k={t('garment.formality')} v={formality[g.formality - 1]} />
           </dl>

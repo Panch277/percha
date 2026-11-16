@@ -26,6 +26,13 @@ export const CLIP_GROUPS = {
     prompts: [...KNOWN_BRANDS.map((b) => `a product with the ${b} logo`), NO_LOGO],
   },
   color: { keys: COLORS.map((c) => c.key), prompts: COLORS.map((c) => `a ${c.clip} piece of clothing`) },
+  pattern: {
+    keys: ['plain', 'pattern'],
+    prompts: [
+      'a plain solid-colored piece of clothing with no print',
+      'a piece of clothing with an all-over print, stripes, checks or a large graphic',
+    ],
+  },
 } satisfies Record<string, PromptGroup>
 
 export type ClipGroup = keyof typeof CLIP_GROUPS
