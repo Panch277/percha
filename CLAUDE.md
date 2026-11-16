@@ -58,13 +58,14 @@ src/lib/outfits/engine.ts   motor de reglas puro (generate, swapOptions, applyFe
 src/lib/outfits/context.tsx contexto de outfits guardados y preferencias (pesos, ciudad)
 src/lib/weather.ts          Open-Meteo (pronóstico del día, geocoding) + useDayWeather.ts
 src/lib/calendar.ts         grilla del mes, fmtDate, recentUse (puro) + calendar.test.ts
-src/lib/store/              tipos, supabaseStore, localStore (Dexie v2: garments, outfits, prefs), selector
+src/lib/tryon/              types (TryOnProvider, TryOnError con partial), plan (puro + test), ootd (OOTDiffusion, @gradio/client diferido), images (avatar/prenda 768×1024), token (HF token en localStorage)
+src/lib/store/              tipos, supabaseStore, localStore (Dexie v4: garments, outfits, prefs, calendar, media), selector
 src/lib/garments.tsx        contexto de prendas
 src/lib/theme.ts            preferencia de tema
-src/components/             ui.tsx (Button, Chip, Segmented, Sheet, Field…), Icons, Layout, GarmentCard/Form/Sheet, OutfitCollage (prop compact), OutfitCard (prop onAssign), SavedOutfit (OutfitTile + SavedOutfitSheet), SwapSheet, WeatherPill, AuthGate
+src/components/             ui.tsx (Button, Chip, Segmented, Sheet, Field…), Icons, Layout, GarmentCard/Form/Sheet, OutfitCollage (prop compact), OutfitCard (prop onAssign), SavedOutfit (OutfitTile + SavedOutfitSheet), TryOn (OutfitVisual + TryOnButton), SwapSheet, WeatherPill, AuthGate
 src/pages/                  Closet, AddGarments, Outfits (con modo ?plan=fecha), Calendar, Profile
 scripts/                    clip-text-embeddings.ts (npm run clip:embed)
-supabase/                   schema.sql (001), 002_outfits.sql y 003_calendar.sql
+supabase/                   schema.sql (001), 002_outfits.sql, 003_calendar.sql y 004_avatar.sql
 ```
 
 ## 4. Diseño (respetar)
@@ -88,7 +89,12 @@ supabase/                   schema.sql (001), 002_outfits.sql y 003_calendar.sql
   - Verificado en producción con la cuenta real: migración 002 aplicada, RLS en `outfits`/`preferences` (sin sesión → 42501), guardar/borrar outfit y like (upsert de `preferences`) desde la UI. Los datos de prueba se limpiaron.
   - Modo demo para capturas: `npm run dev:demo` (puerto 5174, `.env.demo` vacío). Clóset de prueba: fotos de Wikimedia pasadas por el pipeline real.
 - ✅ **Entrega 3 (calendario, 2026-11-16):** `supabase/003_calendar.sql` (`calendar_entries`, PK (user_id, date), FK a outfits con cascade, RLS que además exige que el outfit sea propio) + Dexie v3. Pantalla Calendario: grilla con semana desde el lunes (es) o domingo (en), navegación por `?m=YYYY-MM`, miniatura del collage compacto (sin gorra/lentes/reloj). En celular el día abre una hoja; en ≥1024 px va en un panel fijo a la derecha (por defecto hoy). El día muestra el clima, el outfit (cambiar/quitar) o permite elegir un guardado o **generar para este día** (Outfits en modo `?plan=fecha`: banner, sin selector de fecha y botón "Asignar al día" que guarda + asigna + vuelve). En el detalle de un guardado: días asignados y "Asignar a un día". El uso reciente del motor ahora sale del calendario (±7 días). 34 tests. Capturas en `docs/screenshots/entrega3/`.
-  - Pendiente para la entrega 4: `DayThumb` en `pages/Calendar.tsx` debe mostrar el render de `tryon_path` si existe.
+- ✅ **Entrega 4 (avatar y prueba virtual, 2026-11-16):**
+  - **Space elegido: `levihsu/OOTDiffusion`** (`/process_dc`, `category` Upper-body / Lower-body, Gradio 6, ZeroGPU, licencia CC BY-NC-SA). Verificado antes de codear: Kolors no expone API, IDM-VTON tiene la máscara automática fija en `upper_body` (solo arriba), CatVTON caído. Prueba real desde el navegador: arriba 13 s + abajo 14 s, sin problemas de CORS. Arriba va el abrigo si hay, si no el top.
+  - **Cuota:** cada paso pide 90 s de GPU; la cuota anónima por IP alcanza para 1–2 pruebas por día (se agotó probando). Token de Hugging Face opcional en Perfil (solo en localStorage del dispositivo, no se sube) → `Client.connect(..., { hf_token })`. Si falla abajo después de arriba, se guarda el parcial con aviso.
+  - Avatar: RMBG sobre la foto + `fitInto` a 768×1024 con fondo #F4F4F4 (JPEG). Supabase: `<uid>/avatar-<ts>.jpg` y `<uid>/tryon/<outfit>-<ts>.webp` (nombres únicos porque el bucket no tiene política de update) + `preferences.avatar_path` (004) y `outfits.tryon_path`. Local: Dexie v4, tabla `media`.
+  - UI: "Probármelo" en la tarjeta (sin avatar lleva a `/profile#avatar`; si el outfit no está guardado, lo guarda), progreso encima del collage, selector Avatar/Collage, "Volver a probar"; el render se ve en guardados y en la miniatura del calendario. 39 tests. Capturas en `docs/screenshots/entrega4/`.
+  - **Sin verificar de punta a punta** el guardado de un render real (se terminó la cuota): la UI del render se probó con un resultado simulado, que después se borró.
 - ⚠️ **Pendiente:**
   4. Rendimiento y memoria en iPhone. Safari de iOS 26 trae WebGPU (usaría el camino rápido); si no, wasm de un hilo (lento). Para multihilo haría falta COOP/COEP, que complica las imágenes de Supabase.
   5. Apagar *Allow new users to sign up* en Supabase y poner la Site URL de Vercel.
@@ -115,7 +121,7 @@ supabase/                   schema.sql (001), 002_outfits.sql y 003_calendar.sql
 - Tocar un día abre una sheet para asignar un outfit guardado, generar uno nuevo para esa fecha (precargando el clima del día), cambiarlo o quitarlo.
 - Tabla `calendar_entries` (user_id, date, outfit_id), única por (user_id, date).
 
-### Entrega 4: avatar y prueba virtual
+### Entrega 4: avatar y prueba virtual (✅ hecha con OOTDiffusion en lugar de Kolors/IDM-VTON, ver sección 5)
 - En Perfil: subir una foto de cuerpo completo, quitarle el fondo con el mismo pipeline y guardarla en Storage.
 - "Probármelo" llama desde el navegador a un **Space gratis de Hugging Face** con `@gradio/client` (candidatos: `Kwai-Kolors/Kolors-Virtual-Try-On`, `yisol/IDM-VTON`). Primero se prueba el top y después el bottom sobre el resultado. Verificar los nombres de endpoint del Space antes de codear.
 - Guardar el resultado en `outfits.tryon_path` y mostrarlo en la tarjeta y en el calendario.
