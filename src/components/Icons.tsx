@@ -100,3 +100,60 @@ export const IconAlert = (p: P) => (
     <path d="M12 10v4.5M12 17.2v.1" />
   </Base>
 )
+export const IconThumbUp = (p: P) => (
+  <Base {...p}>
+    <path d="M7.5 10.5v9H4.8a1.3 1.3 0 0 1-1.3-1.3v-6.4a1.3 1.3 0 0 1 1.3-1.3zM7.5 10.5l3.6-6.4a1.9 1.9 0 0 1 3.5 1.3l-.7 3.6h4.7a2 2 0 0 1 2 2.4l-1.3 6.6a2 2 0 0 1-2 1.5H7.5" />
+  </Base>
+)
+export const IconThumbDown = (p: P) => (
+  <Base {...p}>
+    <path d="M16.5 13.5v-9h2.7a1.3 1.3 0 0 1 1.3 1.3v6.4a1.3 1.3 0 0 1-1.3 1.3zM16.5 13.5l-3.6 6.4a1.9 1.9 0 0 1-3.5-1.3l.7-3.6H5.4a2 2 0 0 1-2-2.4l1.3-6.6a2 2 0 0 1 2-1.5h9.8" />
+  </Base>
+)
+export const IconBookmark = (p: P) => (
+  <Base {...p}>
+    <path d="M6.5 4.5h11v16l-5.5-4-5.5 4z" />
+  </Base>
+)
+export const IconPencil = (p: P) => (
+  <Base {...p}>
+    <path d="M14.5 5.5l4 4M4.5 19.5l1-4.5L16 4.5a1.4 1.4 0 0 1 2 0l1.5 1.5a1.4 1.4 0 0 1 0 2L9 18.5z" />
+  </Base>
+)
+export const IconShuffle = (p: P) => (
+  <Base {...p}>
+    <path d="M4 7h3.5c4.5 0 4.5 10 9 10H20M4 17h3.5c1.7 0 2.7-1.4 3.4-3M20 7h-3.5c-1.7 0-2.7 1.4-3.4 3M17.5 4.5L20 7l-2.5 2.5M17.5 14.5L20 17l-2.5 2.5" />
+  </Base>
+)
+export const IconSun = (p: P) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+  </Base>
+)
+export const IconCloud = (p: P) => (
+  <Base {...p}>
+    <path d="M7 18.5h10a4 4 0 0 0 .6-8 5.5 5.5 0 0 0-10.6 1.2A3.4 3.4 0 0 0 7 18.5z" />
+  </Base>
+)
+export const IconRain = (p: P) => (
+  <Base {...p}>
+    <path d="M7 15h10a3.8 3.8 0 0 0 .6-7.5 5.3 5.3 0 0 0-10.2 1.1A3.2 3.2 0 0 0 7 15zM8.5 18l-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5" />
+  </Base>
+)
+export const IconSnow = (p: P) => (
+  <Base {...p}>
+    <path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5" />
+  </Base>
+)
+export const IconStorm = (p: P) => (
+  <Base {...p}>
+    <path d="M7 15h10a3.8 3.8 0 0 0 .6-7.5 5.3 5.3 0 0 0-10.2 1.1A3.2 3.2 0 0 0 7 15zM12.5 15l-2 3.5h3l-2 3" />
+  </Base>
+)
+export const IconPin = (p: P) => (
+  <Base {...p}>
+    <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+    <circle cx="12" cy="10" r="2.3" />
+  </Base>
+)

@@ -3,10 +3,12 @@ import { HashRouter, Route, Routes } from 'react-router-dom'
 import { AuthGate } from './components/AuthGate'
 import { Layout } from './components/Layout'
 import { GarmentsProvider } from './lib/garments'
+import { OutfitsProvider } from './lib/outfits/context'
 import { type ThemePref, useTheme } from './lib/theme'
 import AddGarments from './pages/AddGarments'
 import Closet from './pages/Closet'
-import { Calendar, Outfits } from './pages/Placeholders'
+import Outfits from './pages/Outfits'
+import { Calendar } from './pages/Placeholders'
 import Profile from './pages/Profile'
 
 const ThemeCtx = createContext<readonly [ThemePref, (t: ThemePref) => void]>(['system', () => {}])
@@ -18,17 +20,19 @@ export default function App() {
     <ThemeCtx.Provider value={theme}>
       <AuthGate>
         <GarmentsProvider>
-          <HashRouter>
-            <Routes>
-              <Route element={<Layout />}>
-                <Route index element={<Closet />} />
-                <Route path="outfits" element={<Outfits />} />
-                <Route path="calendar" element={<Calendar />} />
-                <Route path="profile" element={<Profile />} />
-              </Route>
-              <Route path="add" element={<AddGarments />} />
-            </Routes>
-          </HashRouter>
+          <OutfitsProvider>
+            <HashRouter>
+              <Routes>
+                <Route element={<Layout />}>
+                  <Route index element={<Closet />} />
+                  <Route path="outfits" element={<Outfits />} />
+                  <Route path="calendar" element={<Calendar />} />
+                  <Route path="profile" element={<Profile />} />
+                </Route>
+                <Route path="add" element={<AddGarments />} />
+              </Routes>
+            </HashRouter>
+          </OutfitsProvider>
         </GarmentsProvider>
       </AuthGate>
     </ThemeCtx.Provider>

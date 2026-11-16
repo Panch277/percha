@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { IconUser } from '../components/Icons'
+import { IconPin, IconSearch, IconUser } from '../components/Icons'
 import { PageHeader } from '../components/Layout'
-import { Button, ProgressBar, Segmented, Spinner } from '../components/ui'
+import { Button, inputCls, ProgressBar, Segmented, Spinner } from '../components/ui'
 import { setLanguage } from '../i18n'
 import { ai, type ModelProgress } from '../lib/ai/client'
+import { useOutfits } from '../lib/outfits/context'
+import { searchCity } from '../lib/weather'
 import { isDemo } from '../lib/store'
 import { supabase } from '../lib/supabase'
 import type { ThemePref } from '../lib/theme'
@@ -76,6 +78,10 @@ export default function Profile() {
           />
         </Card>
 
+        <Card title={t('profile.city')}>
+          <CityPicker />
+        </Card>
+
         <Card title={t('profile.ai')}>
           <p className="text-[13px] leading-relaxed text-muted">{t('profile.aiBody')}</p>
           {warm === 'busy' && (
@@ -101,6 +107,70 @@ export default function Profile() {
         )}
       </div>
     </>
+  )
+}
+
+function CityPicker() {
+  const { t, i18n } = useTranslation()
+  const { prefs, setCity } = useOutfits()
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [results, setResults] = useState<Awaited<ReturnType<typeof searchCity>> | null>(null)
+
+  async function search(e: FormEvent) {
+    e.preventDefault()
+    if (!q.trim()) return
+    setBusy(true)
+    try {
+      setResults(await searchCity(q.trim(), i18n.language.startsWith('en') ? 'en' : 'es'))
+    } catch {
+      setResults([])
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-[13px] leading-relaxed text-muted">{t('profile.cityBody')}</p>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2 text-[14px] font-medium">
+          <IconPin size={17} className="shrink-0" />
+          <span className="truncate">{prefs.city?.name ?? t('profile.cityAuto')}</span>
+        </span>
+        {prefs.city && (
+          <Button variant="secondary" size="sm" className="bg-bg" onClick={() => setCity(null)}>
+            {t('profile.cityAuto')}
+          </Button>
+        )}
+      </div>
+      <form onSubmit={search} className="mt-3 flex gap-2">
+        <input className={inputCls + ' bg-bg'} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('profile.cityPlaceholder')} />
+        <Button type="submit" variant="secondary" className="h-12 shrink-0 bg-bg" disabled={busy} aria-label={t('profile.cityPlaceholder')}>
+          {busy ? <Spinner /> : <IconSearch size={18} />}
+        </Button>
+      </form>
+      {results && (
+        <div className="mt-2 divide-y divide-line overflow-hidden rounded-2xl bg-bg">
+          {results.length === 0 && <p className="px-4 py-3 text-[13px] text-muted">{t('profile.cityNone')}</p>}
+          {results.map((c) => (
+            <button
+              key={`${c.lat},${c.lon}`}
+              type="button"
+              className="block w-full px-4 py-3 text-left hover:bg-surface"
+              onClick={() => {
+                setCity({ name: c.name, lat: c.lat, lon: c.lon })
+                setResults(null)
+                setQ('')
+              }}
+            >
+              <div className="text-[14px] font-medium">{c.name}</div>
+              <div className="text-[12px] text-muted">{c.detail}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
