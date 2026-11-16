@@ -53,12 +53,17 @@ src/config/brand.ts         identidad (nombre, acento)
 src/index.css               tokens de color (CSS vars) + tema oscuro + utilidades
 src/i18n/index.ts           diccionarios es/en (en tipado contra es)
 src/lib/taxonomy.ts         categorías, subcategorías (con warmth/formality por defecto), colores, estilos, marcas
-src/lib/ai/                 worker, protocolo, cliente (con progreso de descarga) y processPhoto()
-src/lib/store/              tipos, supabaseStore, localStore, selector
+src/lib/ai/                 worker, protocolo, cliente (con progreso de descarga), prompts de CLIP, embeddings de texto y processPhoto()
+src/lib/outfits/engine.ts   motor de reglas puro (generate, swapOptions, applyFeedback, harmony…) + engine.test.ts
+src/lib/outfits/context.tsx contexto de outfits guardados y preferencias (pesos, ciudad)
+src/lib/weather.ts          Open-Meteo (pronóstico del día, geocoding) + useDayWeather.ts
+src/lib/store/              tipos, supabaseStore, localStore (Dexie v2: garments, outfits, prefs), selector
 src/lib/garments.tsx        contexto de prendas
 src/lib/theme.ts            preferencia de tema
-src/components/             ui.tsx (Button, Chip, Segmented, Sheet, Field…), Icons, Layout (nav inferior/lateral), GarmentCard, GarmentForm, GarmentSheet, AuthGate
-src/pages/                  Closet, AddGarments, Profile, Placeholders (Outfits, Calendar)
+src/components/             ui.tsx (Button, Chip, Segmented, Sheet, Field…), Icons, Layout, GarmentCard/Form/Sheet, OutfitCollage, OutfitCard, SwapSheet, AuthGate
+src/pages/                  Closet, AddGarments, Outfits, Profile, Placeholders (Calendar)
+scripts/                    clip-text-embeddings.ts (npm run clip:embed)
+supabase/                   schema.sql (001) y 002_outfits.sql
 ```
 
 ## 4. Diseño (respetar)
@@ -76,13 +81,18 @@ src/pages/                  Closet, AddGarments, Profile, Placeholders (Outfits,
   1. RMBG-1.4 con `model_type: 'isnet'` recorta muy bien en WebGPU fp32 (~1–2 s por foto) y en wasm q8 (~15 s, un solo hilo). El ONNX tiene la entrada fija en 1024 px (no se puede achicar).
   2. CLIP clasifica bien tras los cambios de arriba (prompts más descriptivos para remera/chomba/camisa, texto precalculado, umbrales).
   3. Flujo completo con Supabase (proyecto `lcmesamjjujutzfxytgl`, São Paulo): alta de usuario, subida a Storage (`garments/<uid>/<id>.webp` + `_thumb`), URLs firmadas, edición (trigger `updated_at`), borrado de fila + archivos, y RLS (sin sesión: select vacío, insert rechazado 42501, Storage 400).
+- ✅ **Deploy:** Vercel, proyecto `utn14/percha`, https://percha-three.vercel.app. Repo `Panch277/percha` (rama `main`). La conexión GitHub↔Vercel quedó **pendiente** (la cuenta de Vercel no tiene GitHub como login connection): por ahora se deploya con `npx.cmd vercel deploy --prod --yes`. En PowerShell 5.1 las env vars se cargan con `--value` (por tubería les mete BOM). Git en este Windows: `C:\Program Files\Git\cmd\git.exe` (en Bash está en el PATH); identidad local del repo `Francisco`.
+- ✅ **Entrega 2 (outfits, 2026-11-16):** motor de reglas con 26 tests (Vitest), clima Open-Meteo, pantalla Outfits (ocasión, fecha, clima, carrusel, like/dislike, cambiar prenda, guardar, "Probármelo" deshabilitado), guardados, ciudad en Perfil, campo `pattern` (liso/estampado, sugerido por CLIP con umbral 0.45 y solo en ropa), descripciones con concordancia de género/número en español. Capturas en `docs/screenshots/entrega2/`.
+  - Decisiones: ocasiones `casual | night | office | sport`; el lugar en el collage sale de la categoría (en la DB solo `item_ids`); "accessory" en el outfit es solo el reloj; el jean cuenta como neutro; el uso reciente sale de outfits guardados con fecha (±7 días) hasta que exista el calendario; votar no regenera las tarjetas a la vista (los pesos se leen al generar); misma fecha + ocasión + ronda → mismas propuestas (semilla).
+  - Modo demo para capturas: `npm run dev:demo` (puerto 5174, `.env.demo` vacío). Clóset de prueba: fotos de Wikimedia pasadas por el pipeline real.
 - ⚠️ **Pendiente:**
   4. Rendimiento y memoria en iPhone. Safari de iOS 26 trae WebGPU (usaría el camino rápido); si no, wasm de un hilo (lento). Para multihilo haría falta COOP/COEP, que complica las imágenes de Supabase.
-- Probado: typecheck, build, UI en móvil y escritorio, claro y oscuro (Playwright + Chrome) y camino de respaldo sin IA.
+  5. Apagar *Allow new users to sign up* en Supabase y poner la Site URL de Vercel.
+- Probado: typecheck, tests, build, UI en móvil y escritorio, claro y oscuro (navegador integrado) y camino de respaldo sin IA.
 
 ## 6. Próximas entregas (en este orden)
 
-### Entrega 2: generador de outfits por ocasión
+### Entrega 2: generador de outfits por ocasión (✅ hecha, ver sección 5)
 - Pantalla Outfits: elegir **ocasión** (Casual, Salida, Oficina, Deporte) y fecha opcional (por defecto hoy). Se ven N propuestas en un **carrusel** de collages.
 - **Clima:** Open-Meteo (gratis, sin key), con geolocalización del navegador o ciudad guardada en Perfil. Usa la temperatura máxima/mínima y la probabilidad de lluvia del día.
 - **Motor de reglas** (`src/lib/outfits/engine.ts`, puro y testeable):
