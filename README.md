@@ -3,6 +3,7 @@
 Web app mobile-first para digitalizar tu ropa y armar outfits.
 - **Entrega 1 · Clóset:** carga con IA, grilla, búsqueda y filtros.
 - **Entrega 2 · Outfits:** propuestas por ocasión (casual, salida, oficina, deporte) según el clima del día, con like/dislike, cambio de prendas y outfits guardados.
+- **Entrega 3 · Calendario:** mes con un outfit por día (miniatura del collage), asignar uno guardado o generar uno nuevo con el clima de ese día.
 
 ![Outfits en el celular](docs/screenshots/entrega2/01-movil-claro.jpg)
 
@@ -18,7 +19,7 @@ Web app mobile-first para digitalizar tu ropa y armar outfits.
   - Plantilla por ocasión (arriba + abajo + calzado, abrigo según el clima, y gorra, lentes y reloj opcionales) con rango de formalidad.
   - Clima de [Open-Meteo](https://open-meteo.com) (gratis, sin key): máxima, mínima y probabilidad de lluvia del día elegido. Ubicación: ciudad elegida en Perfil o la del dispositivo.
   - Armonía de color: neutros (el jean cuenta como neutro) + como mucho 2 acentos que no choquen, y nunca dos estampados.
-  - Evita repetir prendas de outfits guardados en los ±7 días, aprende de los like/dislike (pesos por prenda y por par) y varía con aleatoriedad controlada.
+  - Evita repetir prendas planificadas en el calendario en los ±7 días, aprende de los like/dislike (pesos por prenda y por par) y varía con aleatoriedad controlada.
 
 ## Puesta en marcha (unos 15 minutos)
 
@@ -26,9 +27,10 @@ Web app mobile-first para digitalizar tu ropa y armar outfits.
 1. Creá un proyecto en [supabase.com](https://supabase.com).
 2. **SQL Editor →** pegá todo `supabase/schema.sql` **→ Run**. Crea la tabla `garments`, el bucket privado `garments` y las reglas de seguridad.
 3. **SQL Editor →** pegá todo `supabase/002_outfits.sql` **→ Run** (entrega 2). Agrega la columna `pattern` a `garments` y las tablas `outfits` y `preferences`, con RLS. Es idempotente: se puede correr más de una vez.
-4. **Authentication → Sign In / Providers → Email:** dejá prendido *Enable Email provider* (si se apaga, la app dice "Email logins are disabled") y apagá solo *Confirm email*. **Save.** El cambio tarda unos segundos en aplicarse.
-5. **Project Settings → Data API:** copiá la *Project URL*. **API Keys:** copiá la *publishable key* (`sb_publishable_…`).
-6. Chequeo rápido: en **Table Editor** tienen que aparecer `garments`, `outfits` y `preferences`, y en **Storage** el bucket `garments`. Fijate que estés en el proyecto correcto (el id está en la URL del dashboard).
+4. **SQL Editor →** pegá todo `supabase/003_calendar.sql` **→ Run** (entrega 3). Crea `calendar_entries` (un outfit por día) con RLS; si borrás un outfit, sus días quedan libres.
+5. **Authentication → Sign In / Providers → Email:** dejá prendido *Enable Email provider* (si se apaga, la app dice "Email logins are disabled") y apagá solo *Confirm email*. **Save.** El cambio tarda unos segundos en aplicarse.
+6. **Project Settings → Data API:** copiá la *Project URL*. **API Keys:** copiá la *publishable key* (`sb_publishable_…`).
+7. Chequeo rápido: en **Table Editor** tienen que aparecer `garments`, `outfits`, `preferences` y `calendar_entries`, y en **Storage** el bucket `garments`. Fijate que estés en el proyecto correcto (el id está en la URL del dashboard).
 
 ### 2. Código en GitHub
 Subí esta carpeta a un repo (puede ser privado).
@@ -55,7 +57,7 @@ npm install            # si falla onnxruntime-node por la red: npm install --ign
 cp .env.example .env   # completá las dos variables (o dejalo vacío para modo demo)
 npm run dev            # con tu Supabase
 npm run dev:demo       # modo demo local en :5174 (ignora el .env), para probar sin tocar la nube
-npm test               # tests del motor de outfits, descripciones y embeddings de CLIP
+npm test               # tests del motor de outfits, calendario, descripciones y embeddings de CLIP
 ```
 
 ## Estructura
@@ -66,15 +68,16 @@ src/
   lib/ai/                worker de IA, cliente, prompts de CLIP y pipeline de procesamiento de fotos
   lib/outfits/           motor de reglas (puro, con tests) y contexto de outfits/preferencias
   lib/weather.ts         Open-Meteo: pronóstico del día y búsqueda de ciudades
+  lib/calendar.ts        grilla del mes, fechas y uso reciente (puro, con tests)
   lib/store/             capa de datos: Supabase o local (misma interfaz)
-  pages/                 Clóset, Agregar prendas, Outfits, Perfil, placeholder del calendario
+  pages/                 Clóset, Agregar prendas, Outfits, Calendario, Perfil
   components/            UI (botones, chips, sheet), prenda (form, tarjeta, detalle), outfit (collage, tarjeta, cambio)
 supabase/schema.sql      tabla de prendas, bucket y políticas RLS
 supabase/002_outfits.sql estampado, outfits y preferencias (entrega 2)
+supabase/003_calendar.sql calendario: un outfit por día (entrega 3)
 docs/screenshots/        capturas de cada entrega
 ```
 
 ## Próximas entregas
-3. Calendario mensual.
 4. Avatar y prueba virtual (Space gratuito de Hugging Face, con resultado cacheado).
 5. Wishlist, estadísticas, modo valija.

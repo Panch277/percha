@@ -57,13 +57,14 @@ src/lib/ai/                 worker, protocolo, cliente (con progreso de descarga
 src/lib/outfits/engine.ts   motor de reglas puro (generate, swapOptions, applyFeedback, harmony…) + engine.test.ts
 src/lib/outfits/context.tsx contexto de outfits guardados y preferencias (pesos, ciudad)
 src/lib/weather.ts          Open-Meteo (pronóstico del día, geocoding) + useDayWeather.ts
+src/lib/calendar.ts         grilla del mes, fmtDate, recentUse (puro) + calendar.test.ts
 src/lib/store/              tipos, supabaseStore, localStore (Dexie v2: garments, outfits, prefs), selector
 src/lib/garments.tsx        contexto de prendas
 src/lib/theme.ts            preferencia de tema
-src/components/             ui.tsx (Button, Chip, Segmented, Sheet, Field…), Icons, Layout, GarmentCard/Form/Sheet, OutfitCollage, OutfitCard, SwapSheet, AuthGate
-src/pages/                  Closet, AddGarments, Outfits, Profile, Placeholders (Calendar)
+src/components/             ui.tsx (Button, Chip, Segmented, Sheet, Field…), Icons, Layout, GarmentCard/Form/Sheet, OutfitCollage (prop compact), OutfitCard (prop onAssign), SavedOutfit (OutfitTile + SavedOutfitSheet), SwapSheet, WeatherPill, AuthGate
+src/pages/                  Closet, AddGarments, Outfits (con modo ?plan=fecha), Calendar, Profile
 scripts/                    clip-text-embeddings.ts (npm run clip:embed)
-supabase/                   schema.sql (001) y 002_outfits.sql
+supabase/                   schema.sql (001), 002_outfits.sql y 003_calendar.sql
 ```
 
 ## 4. Diseño (respetar)
@@ -83,9 +84,11 @@ supabase/                   schema.sql (001) y 002_outfits.sql
   3. Flujo completo con Supabase (proyecto `lcmesamjjujutzfxytgl`, São Paulo): alta de usuario, subida a Storage (`garments/<uid>/<id>.webp` + `_thumb`), URLs firmadas, edición (trigger `updated_at`), borrado de fila + archivos, y RLS (sin sesión: select vacío, insert rechazado 42501, Storage 400).
 - ✅ **Deploy:** Vercel, proyecto `utn14/percha`, https://percha-three.vercel.app. Repo `Panch277/percha` (rama `main`). La conexión GitHub↔Vercel quedó **pendiente** (la cuenta de Vercel no tiene GitHub como login connection): por ahora se deploya con `npx.cmd vercel deploy --prod --yes`. En PowerShell 5.1 las env vars se cargan con `--value` (por tubería les mete BOM). Git en este Windows: `C:\Program Files\Git\cmd\git.exe` (en Bash está en el PATH); identidad local del repo `Francisco`.
 - ✅ **Entrega 2 (outfits, 2026-11-16):** motor de reglas con 26 tests (Vitest), clima Open-Meteo, pantalla Outfits (ocasión, fecha, clima, carrusel, like/dislike, cambiar prenda, guardar, "Probármelo" deshabilitado), guardados, ciudad en Perfil, campo `pattern` (liso/estampado, sugerido por CLIP con umbral 0.45 y solo en ropa), descripciones con concordancia de género/número en español. Capturas en `docs/screenshots/entrega2/`.
-  - Decisiones: ocasiones `casual | night | office | sport`; el lugar en el collage sale de la categoría (en la DB solo `item_ids`); "accessory" en el outfit es solo el reloj; el jean cuenta como neutro; el uso reciente sale de outfits guardados con fecha (±7 días) hasta que exista el calendario; votar no regenera las tarjetas a la vista (los pesos se leen al generar); misma fecha + ocasión + ronda → mismas propuestas (semilla).
+  - Decisiones: ocasiones `casual | night | office | sport`; el lugar en el collage sale de la categoría (en la DB solo `item_ids`); "accessory" en el outfit es solo el reloj; el jean cuenta como neutro; el uso reciente sale del calendario (desde la entrega 3); votar no regenera las tarjetas a la vista (los pesos se leen al generar); misma fecha + ocasión + ronda → mismas propuestas (semilla).
   - Verificado en producción con la cuenta real: migración 002 aplicada, RLS en `outfits`/`preferences` (sin sesión → 42501), guardar/borrar outfit y like (upsert de `preferences`) desde la UI. Los datos de prueba se limpiaron.
   - Modo demo para capturas: `npm run dev:demo` (puerto 5174, `.env.demo` vacío). Clóset de prueba: fotos de Wikimedia pasadas por el pipeline real.
+- ✅ **Entrega 3 (calendario, 2026-11-16):** `supabase/003_calendar.sql` (`calendar_entries`, PK (user_id, date), FK a outfits con cascade, RLS que además exige que el outfit sea propio) + Dexie v3. Pantalla Calendario: grilla con semana desde el lunes (es) o domingo (en), navegación por `?m=YYYY-MM`, miniatura del collage compacto (sin gorra/lentes/reloj). En celular el día abre una hoja; en ≥1024 px va en un panel fijo a la derecha (por defecto hoy). El día muestra el clima, el outfit (cambiar/quitar) o permite elegir un guardado o **generar para este día** (Outfits en modo `?plan=fecha`: banner, sin selector de fecha y botón "Asignar al día" que guarda + asigna + vuelve). En el detalle de un guardado: días asignados y "Asignar a un día". El uso reciente del motor ahora sale del calendario (±7 días). 34 tests. Capturas en `docs/screenshots/entrega3/`.
+  - Pendiente para la entrega 4: `DayThumb` en `pages/Calendar.tsx` debe mostrar el render de `tryon_path` si existe.
 - ⚠️ **Pendiente:**
   4. Rendimiento y memoria en iPhone. Safari de iOS 26 trae WebGPU (usaría el camino rápido); si no, wasm de un hilo (lento). Para multihilo haría falta COOP/COEP, que complica las imágenes de Supabase.
   5. Apagar *Allow new users to sign up* en Supabase y poner la Site URL de Vercel.
@@ -107,7 +110,7 @@ supabase/                   schema.sql (001) y 002_outfits.sql
 - **Acciones:** like / dislike, editar (cambiar una prenda por otra de la misma categoría), guardar outfit. Botón "Probármelo" deshabilitado con "Próximamente" hasta la entrega 4.
 - **Datos:** tabla `outfits` (id, user_id, occasion, style, item_ids uuid[], created_at, tryon_path null) y `outfit_feedback` (o una tabla `preferences` con jsonb de pesos). Siempre con RLS e implementación local equivalente.
 
-### Entrega 3: calendario mensual
+### Entrega 3: calendario mensual (✅ hecha, ver sección 5)
 - Grilla de 7 columnas, navegación entre meses, número de día arriba y miniatura del outfit asignado (collage, o render del avatar si existe).
 - Tocar un día abre una sheet para asignar un outfit guardado, generar uno nuevo para esa fecha (precargando el clima del día), cambiarlo o quitarlo.
 - Tabla `calendar_entries` (user_id, date, outfit_id), única por (user_id, date).
