@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { fmtDate } from '../lib/calendar'
 import { useOutfits } from '../lib/outfits/context'
 import { slotsFromIds } from '../lib/outfits/engine'
@@ -8,6 +9,7 @@ import type { Lang } from '../lib/taxonomy'
 import { IconCalendar, IconTrash } from './Icons'
 import { styleLabel } from './OutfitCard'
 import { OutfitCollage } from './OutfitCollage'
+import { OutfitVisual, TryOnButton } from './TryOn'
 import { Button, cx, Sheet, Spinner } from './ui'
 
 /** Miniatura de un outfit guardado (grillas de Guardados y del calendario) */
@@ -32,7 +34,13 @@ export function OutfitTile({
       onClick={onClick}
       className={cx('overflow-hidden rounded-2xl bg-surface text-left ring-2 transition active:scale-[0.98]', active ? 'ring-ink' : 'ring-transparent')}
     >
-      <OutfitCollage slots={slotsFromIds(outfit.itemIds, garments)} garments={garments} />
+      {outfit.tryonUrl ? (
+        <div className="aspect-[4/5] w-full overflow-hidden bg-tile">
+          <img src={outfit.tryonUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+        </div>
+      ) : (
+        <OutfitCollage slots={slotsFromIds(outfit.itemIds, garments)} garments={garments} />
+      )}
       <div className="px-3 py-2">
         <div className="truncate text-[13.5px] font-bold">{t(`outfits.occasions.${outfit.occasion}`)}</div>
         <div className="truncate text-[12.5px] text-muted">{sub ?? styleLabel(outfit.style, lang)}</div>
@@ -53,9 +61,13 @@ export function SavedOutfitSheet({
 }) {
   const { t, i18n } = useTranslation()
   const lang = (i18n.language.startsWith('en') ? 'en' : 'es') as Lang
-  const { days, remove, assignDay } = useOutfits()
+  const nav = useNavigate()
+  const { saved, days, remove, assignDay, avatarUrl, jobs, tryOn, dismissJob } = useOutfits()
   const [busy, setBusy] = useState(false)
   if (!outfit) return <Sheet open={false} onClose={onClose}>{null}</Sheet>
+  // la versión viva (por ejemplo, con el render recién hecho)
+  const id = outfit.id
+  outfit = saved.find((x) => x.id === id) ?? outfit
 
   const incomplete = outfit.itemIds.some((id) => !garments.has(id))
   const onDays = Object.entries(days)
@@ -95,7 +107,14 @@ export function SavedOutfitSheet({
       }
     >
       <div className="mx-auto max-w-sm overflow-hidden rounded-3xl">
-        <OutfitCollage slots={slotsFromIds(outfit.itemIds, garments)} garments={garments} />
+        <OutfitVisual
+          key={outfit.id}
+          slots={slotsFromIds(outfit.itemIds, garments)}
+          garments={garments}
+          tryonUrl={outfit.tryonUrl}
+          job={jobs[outfit.id]}
+          onDismiss={() => dismissJob(outfit.id)}
+        />
       </div>
       {onDays.length > 0 && (
         <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[14px] text-muted">
@@ -108,6 +127,12 @@ export function SavedOutfitSheet({
         <Button variant="danger" onClick={del} disabled={busy} aria-label={t('common.delete')}>
           <IconTrash size={18} />
         </Button>
+        <TryOnButton
+          compact
+          hasRender={!!outfit.tryonUrl}
+          busy={!!jobs[outfit.id] && 'stage' in jobs[outfit.id]}
+          onClick={() => (avatarUrl ? tryOn(outfit) : nav('/profile#avatar'))}
+        />
         {/* el input de fecha nativo va encima del botón: en el iPhone abre la ruedita */}
         <label className={cx('relative', busy && 'pointer-events-none opacity-40')}>
           <span className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-[14px] font-semibold text-on-ink">

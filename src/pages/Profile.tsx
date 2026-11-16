@@ -1,8 +1,11 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router-dom'
 import { IconPin, IconSearch, IconUser } from '../components/Icons'
 import { PageHeader } from '../components/Layout'
-import { Button, inputCls, ProgressBar, Segmented, Spinner } from '../components/ui'
+import { Button, cx, inputCls, ProgressBar, Segmented, Spinner } from '../components/ui'
+import { prepareAvatar } from '../lib/tryon/images'
+import { getHfToken, setHfToken } from '../lib/tryon/token'
 import { setLanguage } from '../i18n'
 import { ai, type ModelProgress } from '../lib/ai/client'
 import { useOutfits } from '../lib/outfits/context'
@@ -48,17 +51,7 @@ export default function Profile() {
           </Card>
         )}
 
-        <Card>
-          <div className="flex items-center gap-4">
-            <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-bg text-muted">
-              <IconUser size={30} />
-            </div>
-            <div>
-              <div className="font-semibold">{t('profile.avatar')}</div>
-              <p className="text-[13px] leading-snug text-muted">{t('profile.avatarBody')}</p>
-            </div>
-          </div>
-        </Card>
+        <AvatarCard />
 
         <Card title={t('profile.appearance')}>
           <Label>{t('profile.theme')}</Label>
@@ -107,6 +100,176 @@ export default function Profile() {
         )}
       </div>
     </>
+  )
+}
+
+/** Foto de cuerpo entero para la prueba virtual: se le saca el fondo y se encuadra en 3:4 */
+function AvatarCard() {
+  const { t } = useTranslation()
+  const { hash } = useLocation()
+  const { avatarUrl, setAvatar, removeAvatar } = useOutfits()
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+  const [model, setModel] = useState<ModelProgress>({ seg: null, clip: null })
+  const ref = useRef<HTMLElement>(null)
+  const input = useRef<HTMLInputElement>(null)
+  const tips = t('profile.avatarTips', { returnObjects: true }) as string[]
+
+  useEffect(() => ai.onProgress(setModel), [])
+  // se llega acá desde "Probármelo" sin avatar: se lleva la tarjeta a la vista y se resalta
+  const highlight = hash === '#avatar' && !avatarUrl
+  useEffect(() => {
+    if (hash !== '#avatar') return
+    // un frame después: el Layout sube al tope al cambiar de pantalla y lo pisaría
+    const id = requestAnimationFrame(() => ref.current?.scrollIntoView({ block: 'center' }))
+    return () => cancelAnimationFrame(id)
+  }, [hash])
+
+  async function onFile(file: File | undefined) {
+    if (!file) return
+    setBusy(true)
+    setNote(null)
+    try {
+      const { image, cutout } = await prepareAvatar(file)
+      await setAvatar(image)
+      if (!cutout) setNote(t('profile.avatarNoCutout'))
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onRemove() {
+    if (!confirm(t('profile.avatarRemoveConfirm'))) return
+    setBusy(true)
+    try {
+      await removeAvatar()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section ref={ref} className={cx('rounded-3xl bg-surface p-5 transition', highlight && 'ring-2 ring-accent')}>
+      <h2 className="mb-3 text-[15px] font-semibold">{t('profile.avatar')}</h2>
+      <div className="flex gap-4">
+        <div className="relative aspect-[3/4] w-28 shrink-0 overflow-hidden rounded-2xl bg-tile">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="grid h-full w-full place-items-center text-black/25">
+              <IconUser size={40} />
+            </span>
+          )}
+          {busy && (
+            <span className="absolute inset-0 grid place-items-center bg-bg/60">
+              <Spinner />
+            </span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] leading-relaxed text-muted">{t('profile.avatarBody')}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => input.current?.click()} disabled={busy}>
+              {t(avatarUrl ? 'profile.avatarChange' : 'profile.avatarUpload')}
+            </Button>
+            {avatarUrl && (
+              <Button size="sm" variant="secondary" className="bg-bg" onClick={onRemove} disabled={busy}>
+                {t('profile.avatarRemove')}
+              </Button>
+            )}
+          </div>
+          {busy && model.seg !== null && model.seg < 1 && (
+            <div className="mt-3">
+              <ProgressBar value={model.seg} />
+            </div>
+          )}
+          {busy && <p className="mt-2 text-[12px] text-muted">{t('profile.avatarProcessing')}</p>}
+          {note && <p className="mt-2 text-[12px] text-danger">{note}</p>}
+        </div>
+      </div>
+      <ul className="mt-4 space-y-1 text-[12.5px] leading-relaxed text-muted">
+        {tips.map((tip) => (
+          <li key={tip} className="flex gap-2">
+            <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-muted" />
+            {tip}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 rounded-2xl bg-bg p-3 text-[12px] leading-relaxed text-muted">{t('profile.avatarPrivacy')}</p>
+      <HfTokenField />
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          onFile(e.target.files?.[0])
+          e.target.value = ''
+        }}
+      />
+    </section>
+  )
+}
+
+/** Token de Hugging Face opcional: más cuota de GPU para la prueba virtual. Solo en este dispositivo. */
+function HfTokenField() {
+  const { t } = useTranslation()
+  const [saved, setSaved] = useState(() => !!getHfToken())
+  const [value, setValue] = useState('')
+  const valid = value.trim().startsWith('hf_') && value.trim().length > 10
+
+  return (
+    <details className="group mt-3 rounded-2xl bg-bg px-3 py-2.5" open={saved || undefined}>
+      <summary className="flex cursor-pointer list-none items-center justify-between text-[13px] font-medium">
+        {t('profile.hfToken')}
+        {saved && <span className="text-[12px] font-semibold text-accent">✓ {t('profile.hfTokenSaved')}</span>}
+      </summary>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted">
+        {t('profile.hfTokenBody')}{' '}
+        <a className="underline" href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer">
+          huggingface.co/settings/tokens
+        </a>
+      </p>
+      {saved ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          className="mt-2"
+          onClick={() => {
+            setHfToken(null)
+            setSaved(false)
+          }}
+        >
+          {t('profile.hfTokenRemove')}
+        </Button>
+      ) : (
+        <form
+          className="mt-2 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!valid) return
+            setHfToken(value)
+            setValue('')
+            setSaved(true)
+          }}
+        >
+          <input
+            className={inputCls + ' h-10 text-[14px]'}
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="hf_…"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+          <Button size="sm" className="h-10 shrink-0" disabled={!valid}>
+            {t('common.save')}
+          </Button>
+        </form>
+      )}
+    </details>
   )
 }
 

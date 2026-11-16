@@ -2,8 +2,9 @@ import { useTranslation } from 'react-i18next'
 import type { Occasion, OutfitSlots, Slot } from '../lib/outfits/engine'
 import type { GarmentWithImage } from '../lib/store'
 import { type Lang, STYLES, type StyleKey } from '../lib/taxonomy'
-import { IconBookmark, IconCalendar, IconPencil, IconSparkle, IconThumbDown, IconThumbUp } from './Icons'
-import { OutfitCollage } from './OutfitCollage'
+import type { TryOnJob } from '../lib/outfits/context'
+import { IconBookmark, IconCalendar, IconPencil, IconThumbDown, IconThumbUp } from './Icons'
+import { OutfitVisual, TryOnButton } from './TryOn'
 import { cx, Spinner } from './ui'
 
 export const EDIT_SLOTS: Slot[] = ['top', 'bottom', 'footwear', 'outerwear', 'headwear', 'eyewear', 'accessory']
@@ -26,6 +27,10 @@ export function OutfitCard({
   onSlot,
   onAssign,
   assigning,
+  tryonUrl,
+  job,
+  onTryOn,
+  onDismissJob,
 }: {
   occasion: Occasion
   style: StyleKey
@@ -41,6 +46,11 @@ export function OutfitCard({
   /** modo planificar (desde el calendario): reemplaza guardar y probármelo por "Asignar al día" */
   onAssign?: () => void
   assigning?: boolean
+  /** render de la prueba virtual (si el outfit guardado lo tiene) */
+  tryonUrl?: string | null
+  job?: TryOnJob
+  onTryOn: () => void
+  onDismissJob?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const lang = (i18n.language.startsWith('en') ? 'en' : 'es') as Lang
@@ -52,7 +62,14 @@ export function OutfitCard({
         <span className="shrink-0 text-[15px] text-muted">{styleLabel(style, lang)}</span>
       </header>
 
-      <OutfitCollage slots={slots} garments={garments} onSlot={editing ? onSlot : undefined} />
+      <OutfitVisual
+        slots={slots}
+        garments={garments}
+        tryonUrl={tryonUrl}
+        job={job}
+        onSlot={editing ? onSlot : undefined}
+        onDismiss={onDismissJob}
+      />
 
       {editing ? (
         <div className="px-4 pt-3 pb-4">
@@ -101,31 +118,12 @@ export function OutfitCard({
               <IconBtn label={saved ? t('outfits.saved') : t('outfits.save')} active={saved} onClick={onSave}>
                 <IconBookmark size={21} fill={saved ? 'currentColor' : 'none'} />
               </IconBtn>
-              <TryOnSoon />
+              <TryOnButton hasRender={!!tryonUrl} busy={!!job && 'stage' in job} onClick={onTryOn} />
             </>
           )}
         </div>
       )}
     </article>
-  )
-}
-
-/** Prueba virtual: llega en la entrega 4 */
-function TryOnSoon() {
-  const { t } = useTranslation()
-  return (
-    <button
-      type="button"
-      disabled
-      className="ml-auto flex h-10 flex-col items-center justify-center rounded-full bg-ink px-4 text-on-ink opacity-45"
-      title={t('common.soon')}
-    >
-      <span className="flex items-center gap-1.5 text-[13px] leading-none font-semibold">
-        <IconSparkle size={15} />
-        {t('outfits.tryOn')}
-      </span>
-      <span className="mt-0.5 text-[9.5px] leading-none font-medium tracking-wide uppercase">{t('common.soon')}</span>
-    </button>
   )
 }
 

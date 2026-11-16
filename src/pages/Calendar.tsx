@@ -6,6 +6,7 @@ import { PageHeader } from '../components/Layout'
 import { styleLabel } from '../components/OutfitCard'
 import { OutfitCollage } from '../components/OutfitCollage'
 import { OutfitTile } from '../components/SavedOutfit'
+import { OutfitVisual, TryOnButton } from '../components/TryOn'
 import { Button, cx, Sheet, Spinner } from '../components/ui'
 import { WeatherPill } from '../components/WeatherPill'
 import { fmtDate, monthGrid, monthOf, shiftMonth, weekdayLabels, weekStartFor } from '../lib/calendar'
@@ -176,7 +177,13 @@ export default function Calendar() {
 function DayThumb({ outfit, garments }: { outfit: Outfit; garments: Map<string, GarmentWithImage> }) {
   return (
     <span className="block w-full overflow-hidden rounded-lg md:rounded-xl">
-      <OutfitCollage slots={slotsFromIds(outfit.itemIds, garments)} garments={garments} compact />
+      {outfit.tryonUrl ? (
+        <span className="block aspect-[4/5] w-full bg-tile">
+          <img src={outfit.tryonUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+        </span>
+      ) : (
+        <OutfitCollage slots={slotsFromIds(outfit.itemIds, garments)} garments={garments} compact />
+      )}
     </span>
   )
 }
@@ -186,7 +193,7 @@ function DayDetail({ date, garments }: { date: string; garments: Map<string, Gar
   const { t, i18n } = useTranslation()
   const lang = (i18n.language.startsWith('en') ? 'en' : 'es') as Lang
   const nav = useNavigate()
-  const { saved, days, prefs, assignDay, clearDay } = useOutfits()
+  const { saved, days, prefs, assignDay, clearDay, avatarUrl, jobs, tryOn, dismissJob } = useOutfits()
   const outfit = saved.find((o) => o.id === days[date])
   const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -208,7 +215,14 @@ function DayDetail({ date, garments }: { date: string; garments: Map<string, Gar
       {outfit && !picking ? (
         <>
           <div className="mx-auto max-w-xs overflow-hidden rounded-3xl">
-            <OutfitCollage slots={slotsFromIds(outfit.itemIds, garments)} garments={garments} />
+            <OutfitVisual
+              key={outfit.id}
+              slots={slotsFromIds(outfit.itemIds, garments)}
+              garments={garments}
+              tryonUrl={outfit.tryonUrl}
+              job={jobs[outfit.id]}
+              onDismiss={() => dismissJob(outfit.id)}
+            />
           </div>
           <p className="mt-3 text-center text-[15px]">
             <span className="font-semibold">{t(`outfits.occasions.${outfit.occasion}`)}</span>
@@ -218,7 +232,13 @@ function DayDetail({ date, garments }: { date: string; garments: Map<string, Gar
             <Button variant="danger" disabled={busy} onClick={() => run(() => clearDay(date))} aria-label={t('calendar.remove')}>
               {busy ? <Spinner /> : <IconTrash size={18} />}
             </Button>
-            <Button className="flex-1" onClick={() => setPicking(true)}>
+            <TryOnButton
+              compact
+              hasRender={!!outfit.tryonUrl}
+              busy={!!jobs[outfit.id] && 'stage' in jobs[outfit.id]}
+              onClick={() => (avatarUrl ? tryOn(outfit) : nav('/profile#avatar'))}
+            />
+            <Button variant="secondary" className="flex-1 bg-bg" onClick={() => setPicking(true)}>
               {t('calendar.change')}
             </Button>
           </div>

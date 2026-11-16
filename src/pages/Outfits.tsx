@@ -59,7 +59,7 @@ export default function Outfits() {
   const plan = planParam && ISO.test(planParam) ? planParam : null
 
   const { items, loading } = useGarments()
-  const { saved, prefs, days, loading: prefsLoading, save, remove, vote, assignDay } = useOutfits()
+  const { saved, prefs, days, loading: prefsLoading, save, remove, vote, assignDay, avatarUrl, jobs, tryOn, dismissJob } = useOutfits()
 
   const [occasion, setOccasionState] = useState<Occasion>(readOccasion)
   const [pickedDate, setDate] = useState(isoDate)
@@ -158,6 +158,16 @@ export default function Outfits() {
     } finally {
       setBusy(null)
     }
+  }
+
+  /** Probármelo: sin avatar lleva a Perfil; si el outfit no está guardado, lo guarda primero */
+  async function onTryOn(c: Card) {
+    if (!avatarUrl) {
+      nav('/profile#avatar')
+      return
+    }
+    const o = savedByKey.get(outfitKey(c.slots)) ?? (await save({ occasion, style: c.style, itemIds: outfitIds(c.slots), date }))
+    await tryOn(o)
   }
 
   function onPick(id: string | null) {
@@ -291,6 +301,10 @@ export default function Outfits() {
                     onSlot={(slot) => setSwap({ card: c.id, slot })}
                     onAssign={plan ? () => onAssign(c) : undefined}
                     assigning={busy === c.id}
+                    tryonUrl={savedByKey.get(outfitKey(c.slots))?.tryonUrl}
+                    job={jobs[savedByKey.get(outfitKey(c.slots))?.id ?? '']}
+                    onTryOn={() => onTryOn(c)}
+                    onDismissJob={() => dismissJob(savedByKey.get(outfitKey(c.slots))?.id ?? '')}
                   />
                 </div>
               ))}
