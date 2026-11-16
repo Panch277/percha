@@ -31,10 +31,11 @@ export interface SubcategoryDef {
 }
 
 export const SUBCATEGORIES: SubcategoryDef[] = [
-  { key: 'tshirt', category: 'top', label: { es: 'Remera', en: 'T-shirt' }, prompt: 'a t-shirt', warmth: 1, formality: 1 },
+  // Prompts descriptivos: con "a t-shirt" a secas CLIP confundía remeras con logo bordado con chombas
+  { key: 'tshirt', category: 'top', label: { es: 'Remera', en: 'T-shirt' }, prompt: 'a crew neck t-shirt with short sleeves', warmth: 1, formality: 1 },
   { key: 'tank', category: 'top', label: { es: 'Musculosa', en: 'Tank top' }, prompt: 'a sleeveless tank top', warmth: 1, formality: 1 },
-  { key: 'polo', category: 'top', label: { es: 'Chomba', en: 'Polo' }, prompt: 'a polo shirt with collar', warmth: 1, formality: 2 },
-  { key: 'shirt', category: 'top', label: { es: 'Camisa', en: 'Shirt' }, prompt: 'a button-up shirt', warmth: 1, formality: 3 },
+  { key: 'polo', category: 'top', label: { es: 'Chomba', en: 'Polo' }, prompt: 'a polo shirt with a folded collar and buttons', warmth: 1, formality: 2 },
+  { key: 'shirt', category: 'top', label: { es: 'Camisa', en: 'Shirt' }, prompt: 'a button-up shirt with a collar', warmth: 1, formality: 3 },
   { key: 'knit', category: 'top', label: { es: 'Sweater', en: 'Sweater' }, prompt: 'a knit sweater', warmth: 2, formality: 2 },
   { key: 'hoodie', category: 'top', label: { es: 'Buzo', en: 'Hoodie' }, prompt: 'a hoodie or sweatshirt', warmth: 2, formality: 1 },
   { key: 'jacket', category: 'outerwear', label: { es: 'Campera', en: 'Jacket' }, prompt: 'a jacket', warmth: 2, formality: 2 },
@@ -75,29 +76,31 @@ export interface NamedColor {
   key: string
   hex: string
   label: L
+  /** Nombre en inglés para el prompt de CLIP */
+  clip: string
   neutral?: boolean
 }
 export const COLORS: NamedColor[] = [
-  { key: 'black', hex: '#111111', label: { es: 'Negro', en: 'Black' }, neutral: true },
-  { key: 'white', hex: '#FAFAFA', label: { es: 'Blanco', en: 'White' }, neutral: true },
-  { key: 'gray', hex: '#9A9A9E', label: { es: 'Gris', en: 'Gray' }, neutral: true },
-  { key: 'charcoal', hex: '#45474B', label: { es: 'Gris oscuro', en: 'Charcoal' }, neutral: true },
-  { key: 'cream', hex: '#EEE6D3', label: { es: 'Crema', en: 'Cream' }, neutral: true },
-  { key: 'beige', hex: '#CDB892', label: { es: 'Beige', en: 'Beige' }, neutral: true },
-  { key: 'brown', hex: '#6B4A32', label: { es: 'Marrón', en: 'Brown' }, neutral: true },
-  { key: 'navy', hex: '#1F2A44', label: { es: 'Azul marino', en: 'Navy' }, neutral: true },
-  { key: 'blue', hex: '#2F5DA8', label: { es: 'Azul', en: 'Blue' } },
-  { key: 'denim', hex: '#5878A0', label: { es: 'Azul jean', en: 'Denim blue' } },
-  { key: 'lightblue', hex: '#9CC3E6', label: { es: 'Celeste', en: 'Light blue' } },
-  { key: 'green', hex: '#2F7D4A', label: { es: 'Verde', en: 'Green' } },
-  { key: 'olive', hex: '#5E6B3A', label: { es: 'Verde oliva', en: 'Olive' } },
-  { key: 'red', hex: '#C42B2B', label: { es: 'Rojo', en: 'Red' } },
-  { key: 'burgundy', hex: '#6E1F2D', label: { es: 'Bordó', en: 'Burgundy' } },
-  { key: 'pink', hex: '#E9A3B5', label: { es: 'Rosa', en: 'Pink' } },
-  { key: 'orange', hex: '#E07A2E', label: { es: 'Naranja', en: 'Orange' } },
-  { key: 'yellow', hex: '#E8C547', label: { es: 'Amarillo', en: 'Yellow' } },
-  { key: 'purple', hex: '#6A4C93', label: { es: 'Violeta', en: 'Purple' } },
-  { key: 'silver', hex: '#C9CCD1', label: { es: 'Plateado', en: 'Silver' }, neutral: true },
+  { key: 'black', hex: '#111111', label: { es: 'Negro', en: 'Black' }, clip: 'black', neutral: true },
+  { key: 'white', hex: '#FAFAFA', label: { es: 'Blanco', en: 'White' }, clip: 'white', neutral: true },
+  { key: 'gray', hex: '#9A9A9E', label: { es: 'Gris', en: 'Gray' }, clip: 'light gray', neutral: true },
+  { key: 'charcoal', hex: '#45474B', label: { es: 'Gris oscuro', en: 'Charcoal' }, clip: 'dark gray', neutral: true },
+  { key: 'cream', hex: '#EEE6D3', label: { es: 'Crema', en: 'Cream' }, clip: 'cream', neutral: true },
+  { key: 'beige', hex: '#CDB892', label: { es: 'Beige', en: 'Beige' }, clip: 'beige', neutral: true },
+  { key: 'brown', hex: '#6B4A32', label: { es: 'Marrón', en: 'Brown' }, clip: 'brown', neutral: true },
+  { key: 'navy', hex: '#1F2A44', label: { es: 'Azul marino', en: 'Navy' }, clip: 'navy blue', neutral: true },
+  { key: 'blue', hex: '#2F5DA8', label: { es: 'Azul', en: 'Blue' }, clip: 'royal blue' },
+  { key: 'denim', hex: '#5878A0', label: { es: 'Azul jean', en: 'Denim blue' }, clip: 'denim blue' },
+  { key: 'lightblue', hex: '#9CC3E6', label: { es: 'Celeste', en: 'Light blue' }, clip: 'light blue' },
+  { key: 'green', hex: '#2F7D4A', label: { es: 'Verde', en: 'Green' }, clip: 'green' },
+  { key: 'olive', hex: '#5E6B3A', label: { es: 'Verde oliva', en: 'Olive' }, clip: 'olive green' },
+  { key: 'red', hex: '#C42B2B', label: { es: 'Rojo', en: 'Red' }, clip: 'red' },
+  { key: 'burgundy', hex: '#6E1F2D', label: { es: 'Bordó', en: 'Burgundy' }, clip: 'burgundy' },
+  { key: 'pink', hex: '#E9A3B5', label: { es: 'Rosa', en: 'Pink' }, clip: 'pink' },
+  { key: 'orange', hex: '#E07A2E', label: { es: 'Naranja', en: 'Orange' }, clip: 'orange' },
+  { key: 'yellow', hex: '#E8C547', label: { es: 'Amarillo', en: 'Yellow' }, clip: 'yellow' },
+  { key: 'purple', hex: '#6A4C93', label: { es: 'Violeta', en: 'Purple' }, clip: 'purple' },
+  { key: 'silver', hex: '#C9CCD1', label: { es: 'Plateado', en: 'Silver' }, clip: 'silver', neutral: true },
 ]
 export const COLOR_BY_KEY = Object.fromEntries(COLORS.map((c) => [c.key, c])) as Record<string, NamedColor>
 
@@ -134,6 +137,7 @@ export function colorLabel(key: string, lang: Lang) {
 export function autoDescription(sub: string, colorKey: string | undefined, lang: Lang) {
   const s = subLabel(sub, lang)
   if (!colorKey) return s
-  const c = colorLabel(colorKey, lang)
+  // "Jean azul jean" suena mal: para prendas de jean el color denim se nombra como azul
+  const c = colorLabel(colorKey === 'denim' && sub === 'jeans' ? 'blue' : colorKey, lang)
   return lang === 'es' ? `${s} ${c.toLowerCase()}` : `${c} ${s.toLowerCase()}`
 }
