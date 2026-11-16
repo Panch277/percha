@@ -1,0 +1,105 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Tokens de color: se definen como variables para poder cambiar de tema en caliente */
+:root {
+  --bg: #ffffff;
+  --surface: #f5f5f7;
+  --tile: #f5f5f7;
+  --ink: #111111;
+  --muted: #6e6e73;
+  --line: #e5e5ea;
+  --accent: var(--brand-accent, #c4532d);
+  --on-ink: #ffffff;
+  --danger: #d70015;
+}
+.dark {
+  --bg: #0b0b0c;
+  --surface: #1a1a1c;
+  /* Las prendas se muestran sobre gris claro también en oscuro: una remera negra
+     sobre fondo negro desaparecería. */
+  --tile: #e6e6e9;
+  --ink: #f5f5f7;
+  --muted: #98989d;
+  --line: #2c2c2e;
+  --accent: var(--brand-accent-dark, #e07a55);
+  --on-ink: #111111;
+  --danger: #ff453a;
+}
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-tile: var(--tile);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-on-ink: var(--on-ink);
+  --color-danger: var(--danger);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Patrón de "transparencia" para revisar recortes */
+.checker {
+  background-color: var(--tile);
+  background-image: linear-gradient(45deg, rgba(0, 0, 0, 0.04) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(0, 0, 0, 0.04) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(0, 0, 0, 0.04) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(0, 0, 0, 0.04) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-sheet {
+  animation: sheet-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.animate-fade {
+  animation: fade-in 0.2s ease-out;
+}
