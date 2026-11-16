@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { IconCalendar, IconHanger, IconSparkle, IconUser } from './Icons'
 import { cx, Wordmark } from './ui'
 
@@ -12,6 +13,12 @@ const NAV = [
 
 export function Layout() {
   const { t } = useTranslation()
+  // cada pantalla arranca arriba (si no, al volver del modo planificar el calendario abre scrolleado)
+  const { pathname } = useLocation()
+  useEffect(() => {
+    // con llaves: el efecto no puede devolver lo que devuelva scrollTo
+    window.scrollTo(0, 0)
+  }, [pathname])
   return (
     <div className="min-h-dvh md:flex">
       {/* Lateral (escritorio) */}
