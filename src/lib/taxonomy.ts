@@ -133,11 +133,41 @@ export function colorLabel(key: string, lang: Lang) {
   return COLOR_BY_KEY[key]?.label[lang] ?? key
 }
 
+/** Género y número del nombre en español (m singular si no figura): "Remera negra", "Zapatillas blancas" */
+const ES_FORM: Record<string, 'f' | 'mp' | 'fp'> = {
+  tshirt: 'f',
+  tank: 'f',
+  polo: 'f',
+  shirt: 'f',
+  jacket: 'f',
+  puffer: 'f',
+  cap: 'f',
+  sneakers: 'fp',
+  shoes: 'mp',
+  boots: 'fp',
+  sandals: 'fp',
+  sunglasses: 'mp',
+  socks: 'fp',
+}
+
+/** Colores que no cambian con el género ni el número ("azul marino", "beige", "rosa"…) */
+const ES_INVARIABLE = new Set(['charcoal', 'cream', 'beige', 'navy', 'denim', 'olive', 'burgundy', 'pink', 'orange', 'purple'])
+
+/** Color en español concordado con la prenda: negro → negra / negros / negras; gris → grises */
+export function esColor(colorKey: string, sub: string) {
+  let c = colorLabel(colorKey, 'es').toLowerCase()
+  if (ES_INVARIABLE.has(colorKey)) return c
+  const form = ES_FORM[sub] ?? 'm'
+  if (form.startsWith('f') && c.endsWith('o')) c = c.slice(0, -1) + 'a'
+  if (form.endsWith('p')) c = /[aeiou]$/.test(c) ? c + 's' : c === 'marrón' ? 'marrones' : c + 'es'
+  return c
+}
+
 /** Descripción corta automática: "Gorra azul marino" / "Navy cap" */
 export function autoDescription(sub: string, colorKey: string | undefined, lang: Lang) {
   const s = subLabel(sub, lang)
   if (!colorKey) return s
   // "Jean azul jean" suena mal: para prendas de jean el color denim se nombra como azul
-  const c = colorLabel(colorKey === 'denim' && sub === 'jeans' ? 'blue' : colorKey, lang)
-  return lang === 'es' ? `${s} ${c.toLowerCase()}` : `${c} ${s.toLowerCase()}`
+  const key = colorKey === 'denim' && sub === 'jeans' ? 'blue' : colorKey
+  return lang === 'es' ? `${s} ${esColor(key, sub)}` : `${colorLabel(key, lang)} ${s.toLowerCase()}`
 }
