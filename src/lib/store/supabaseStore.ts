@@ -68,7 +68,7 @@ interface OutfitRow {
   created_at: string
 }
 
-function outfitFromRow(r: OutfitRow): Outfit {
+function outfitFromRow(r: OutfitRow, tryonUrl: string | null = null): Outfit {
   return {
     id: r.id,
     occasion: r.occasion,
@@ -76,8 +76,23 @@ function outfitFromRow(r: OutfitRow): Outfit {
     itemIds: r.item_ids ?? [],
     date: r.date,
     tryonPath: r.tryon_path,
+    tryonUrl,
     createdAt: r.created_at,
   }
+}
+
+/** Sube una imagen con nombre único (el bucket no tiene política de update) y la firma */
+async function uploadUnique(prefix: string, image: Blob) {
+  const path = `${await uid()}/${prefix}-${Date.now()}.${ext(image)}`
+  const up = await sb().storage.from(BUCKET).upload(path, image, { contentType: image.type, upsert: false })
+  if (up.error) throw up.error
+  const urls = await sign([path])
+  return { path, url: urls.get(path) ?? '' }
+}
+
+async function removeFiles(paths: (string | null | undefined)[]) {
+  const list = paths.filter((p): p is string => !!p)
+  if (list.length) await sb().storage.from(BUCKET).remove(list)
 }
 
 async function uid() {
@@ -88,7 +103,7 @@ async function uid() {
 }
 
 function ext(b: Blob) {
-  return b.type === 'image/webp' ? 'webp' : 'png'
+  return b.type === 'image/webp' ? 'webp' : b.type === 'image/jpeg' ? 'jpg' : 'png'
 }
 
 export const supabaseStore: DataStore = {
@@ -144,7 +159,9 @@ export const supabaseStore: DataStore = {
   async listOutfits() {
     const { data, error } = await sb().from('outfits').select('*').order('created_at', { ascending: false })
     if (error) throw error
-    return ((data ?? []) as OutfitRow[]).map(outfitFromRow)
+    const rows = (data ?? []) as OutfitRow[]
+    const urls = await sign(rows.map((r) => r.tryon_path).filter((p): p is string => !!p))
+    return rows.map((r) => outfitFromRow(r, r.tryon_path ? (urls.get(r.tryon_path) ?? null) : null))
   },
 
   async addOutfit(o) {
@@ -158,8 +175,11 @@ export const supabaseStore: DataStore = {
   },
 
   async removeOutfit(id) {
+    // el render vive en Storage: el cascade de Postgres no lo borra
+    const { data } = await sb().from('outfits').select('tryon_path').eq('id', id).maybeSingle()
     const { error } = await sb().from('outfits').delete().eq('id', id)
     if (error) throw error
+    await removeFiles([data?.tryon_path])
   },
 
   async listCalendar() {
@@ -191,5 +211,50 @@ export const supabaseStore: DataStore = {
       .from('preferences')
       .upsert({ user_id: await uid(), weights: p.weights, city: p.city }, { onConflict: 'user_id' })
     if (error) throw error
+  },
+
+  async getAvatar() {
+    const { data, error } = await sb().from('preferences').select('avatar_path').maybeSingle()
+    if (error) throw error
+    if (!data?.avatar_path) return null
+    return (await sign([data.avatar_path])).get(data.avatar_path) ?? null
+  },
+
+  async setAvatar(image) {
+    const { data: old } = await sb().from('preferences').select('avatar_path').maybeSingle()
+    const { path, url } = await uploadUnique('avatar', image)
+    const { error } = await sb().from('preferences').upsert({ user_id: await uid(), avatar_path: path }, { onConflict: 'user_id' })
+    if (error) {
+      await removeFiles([path])
+      throw error
+    }
+    await removeFiles([old?.avatar_path])
+    return url
+  },
+
+  async removeAvatar() {
+    const { data: old } = await sb().from('preferences').select('avatar_path').maybeSingle()
+    const { error } = await sb().from('preferences').update({ avatar_path: null }).eq('user_id', await uid())
+    if (error) throw error
+    await removeFiles([old?.avatar_path])
+  },
+
+  async setTryOn(outfitId, image) {
+    const { data: old } = await sb().from('outfits').select('tryon_path').eq('id', outfitId).maybeSingle()
+    const { path, url } = await uploadUnique(`tryon/${outfitId}`, image)
+    const { error } = await sb().from('outfits').update({ tryon_path: path }).eq('id', outfitId)
+    if (error) {
+      await removeFiles([path])
+      throw error
+    }
+    await removeFiles([old?.tryon_path])
+    return url
+  },
+
+  async clearTryOn(outfitId) {
+    const { data: old } = await sb().from('outfits').select('tryon_path').eq('id', outfitId).maybeSingle()
+    const { error } = await sb().from('outfits').update({ tryon_path: null }).eq('id', outfitId)
+    if (error) throw error
+    await removeFiles([old?.tryon_path])
   },
 }

@@ -39,8 +39,9 @@ export interface Outfit {
   itemIds: string[]
   /** día para el que se armó (YYYY-MM-DD), opcional */
   date: string | null
-  /** render de prueba virtual (entrega 4) */
+  /** render de prueba virtual (entrega 4): ruta guardada y URL lista para <img> */
   tryonPath: string | null
+  tryonUrl: string | null
   createdAt: string
 }
 
@@ -90,4 +91,13 @@ export interface DataStore {
 
   getPrefs(): Promise<UserPrefs>
   savePrefs(p: UserPrefs): Promise<void>
+
+  /** foto del avatar (cuerpo entero, ya sin fondo y en 3:4). URL lista para <img> o null */
+  getAvatar(): Promise<string | null>
+  setAvatar(image: Blob): Promise<string>
+  removeAvatar(): Promise<void>
+
+  /** guarda el render de la prueba virtual de un outfit y devuelve su URL */
+  setTryOn(outfitId: string, image: Blob): Promise<string>
+  clearTryOn(outfitId: string): Promise<void>
 }
